@@ -3,15 +3,15 @@ const request = require('../utils/request');
 const protobuf = require('protobufjs');
 const Long = require('long');
 const { waitFor } = require('../utils/timeout');
-const fcmKey = require('../fcm/server-key');
 const { toBase64 } = require('../utils/base64');
+const { promisify } = require('util');
+const { randomBytes } = require('crypto');
+const uuidv4 = require('uuid/v4');
 
 // Hack to fix PHONE_REGISTRATION_ERROR #17 when bundled with webpack
 // https://github.com/dcodeIO/protobuf.js#browserify-integration
-protobuf.util.Long = Long
-protobuf.configure()
-
-const serverKey = toBase64(Buffer.from(fcmKey));
+protobuf.util.Long = Long;
+protobuf.configure();
 
 const REGISTER_URL = 'https://android.clients.google.com/c2dm/register3';
 const CHECKIN_URL = 'https://android.clients.google.com/checkin';
@@ -24,13 +24,22 @@ module.exports = {
   checkIn,
 };
 
-async function register(appId) {
-  const options = await checkIn();
-  const credentials = await doRegister(options, appId);
-  return credentials;
+async function createInstanceId() {
+  // 8 random bytes, but first nibble is 0x7
+  const instanceIdBuf = await promisify(randomBytes)(8);
+  instanceIdBuf[0] &= 0x0f;
+  instanceIdBuf[0] |= 0x70;
+  return toBase64(instanceIdBuf);
 }
 
-async function checkIn(androidId, securityToken) {
+function createAppId() {
+  return `wp:texts.com#${uuidv4().slice(0, -3)}-V2`;
+}
+
+// takes in client info (or null), returns refreshed client info
+async function checkIn(lastClientInfo) {
+  const { androidId = null, securityToken = null, instanceId = null } =
+    lastClientInfo || {};
   await loadProtoFile();
   const buffer = getCheckinRequest(androidId, securityToken);
   const body = await request({
@@ -48,46 +57,57 @@ async function checkIn(androidId, securityToken) {
     enums : String,
     bytes : String,
   });
-  return object;
-}
-
-async function doRegister({ androidId, securityToken }, appId) {
-  const body = {
-    app         : 'org.chromium.linux',
-    'X-subtype' : appId,
-    device      : androidId,
-    sender      : serverKey,
-  };
-  const response = await postRegister({ androidId, securityToken, body });
-  const token = response.split('=')[1];
   return {
-    token,
-    androidId,
-    securityToken,
-    appId,
+    androidId     : object.androidId,
+    securityToken : object.securityToken,
+    instanceId    : instanceId || (await createInstanceId()),
   };
 }
 
-async function postRegister({ androidId, securityToken, body, retry = 0 }) {
-  const response = await request({
+async function register(
+  { androidId, securityToken, instanceId },
+  authorizedEntity
+) {
+  const appId = createAppId();
+
+  const options = {
     url     : REGISTER_URL,
     method  : 'POST',
     headers : {
       Authorization  : `AidLogin ${androidId}:${securityToken}`,
       'Content-Type' : 'application/x-www-form-urlencoded',
     },
-    form : body,
-  });
-  if (response.includes('Error')) {
-    console.warn(`Register request has failed with ${response}`);
-    if (retry >= 5) {
-      throw new Error('GCM register has failed');
+    form : {
+      scope       : 'GCM',
+      'X-scope'   : 'GCM',
+      sender      : authorizedEntity,
+      appid       : instanceId,
+      gmsv        : '101', // major chrome version
+      ttl         : (90 * 24 * 60 * 60).toString(), // 90 days
+      app         : 'com.texts.push',
+      'X-subtype' : appId,
+      device      : androidId,
+    },
+  };
+
+  let response = null;
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
+    const _response = await request(options);
+    if (_response.includes('Error')) {
+      console.warn(`Register request has failed with ${_response}`);
+      if (attempt !== MAX_ATTEMPTS - 1) {
+        console.warn(`Retry... ${attempt + 1}`);
+        await waitFor(1000);
+      }
+    } else {
+      response = _response;
+      break;
     }
-    console.warn(`Retry... ${retry + 1}`);
-    await waitFor(1000);
-    return postRegister({ androidId, securityToken, body, retry : retry + 1 });
   }
-  return response;
+
+  const token = response.split('=')[1];
+  return { token, appId };
 }
 
 async function loadProtoFile() {

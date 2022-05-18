@@ -1,10 +1,8 @@
 const EventEmitter = require('events');
 const Long = require('long');
 const Parser = require('./parser');
-const decrypt = require('./utils/decrypt');
 const path = require('path');
 const tls = require('tls');
-const { checkIn } = require('./gcm');
 const {
   kMCSVersion,
   kLoginRequestTag,
@@ -27,9 +25,9 @@ module.exports = class Client extends EventEmitter {
     proto = await load(path.resolve(__dirname, 'mcs.proto'));
   }
 
-  constructor(credentials, persistentIds) {
+  constructor(clientInfo, persistentIds) {
     super();
-    this._credentials = credentials;
+    this._clientInfo = clientInfo;
     this._persistentIds = persistentIds || [];
     this._retryCount = 0;
     this._onSocketConnect = this._onSocketConnect.bind(this);
@@ -41,7 +39,6 @@ module.exports = class Client extends EventEmitter {
 
   async connect() {
     await Client.init();
-    await this._checkIn();
     this._connect();
     // can happen if the socket immediately closes after being created
     if (!this._socket) {
@@ -59,13 +56,6 @@ module.exports = class Client extends EventEmitter {
 
   destroy() {
     this._destroy();
-  }
-
-  async _checkIn() {
-    return checkIn(
-      this._credentials.gcm.androidId,
-      this._credentials.gcm.securityToken
-    );
   }
 
   _connect() {
@@ -97,19 +87,19 @@ module.exports = class Client extends EventEmitter {
 
   _loginBuffer() {
     const LoginRequestType = proto.lookupType('mcs_proto.LoginRequest');
-    const hexAndroidId = Long.fromString(
-      this._credentials.gcm.androidId
-    ).toString(16);
+    const hexAndroidId = Long.fromString(this._clientInfo.androidId).toString(
+      16
+    );
     const loginRequest = {
       adaptiveHeartbeat    : false,
       authService          : 2,
-      authToken            : this._credentials.gcm.securityToken,
+      authToken            : this._clientInfo.securityToken,
       id                   : 'chrome-63.0.3234.0',
       domain               : 'mcs.android.com',
       deviceId             : `android-${hexAndroidId}`,
       networkType          : 1,
-      resource             : this._credentials.gcm.androidId,
-      user                 : this._credentials.gcm.androidId,
+      resource             : this._clientInfo.androidId,
+      user                 : this._clientInfo.androidId,
       useRmq2              : true,
       setting              : [{ name : 'new_vc', value : '1' }],
       // Id of the last notification received
@@ -136,15 +126,17 @@ module.exports = class Client extends EventEmitter {
   }
 
   _onSocketClose() {
-    this.emit('disconnect')
+    this.emit('disconnect');
     this._retry();
   }
 
   _onSocketError(error) {
     // ignore, the close handler takes care of retry
+    error;
   }
 
   _onParserError(error) {
+    error;
     this._retry();
   }
 
@@ -168,38 +160,9 @@ module.exports = class Client extends EventEmitter {
     if (this._persistentIds.includes(object.persistentId)) {
       return;
     }
-
-    let message;
-    try {
-      message = decrypt(object, this._credentials.keys);
-    } catch (error) {
-      switch (true) {
-        case error.message.includes(
-          'Unsupported state or unable to authenticate data'
-        ):
-        case error.message.includes('crypto-key is missing'):
-        case error.message.includes('salt is missing'):
-          // NOTE(ibash) Periodically we're unable to decrypt notifications. In
-          // all cases we've been able to receive future notifications using the
-          // same keys. So, we silently drop this notification.
-          console.warn(
-            'Message dropped as it could not be decrypted: ' + error.message
-          );
-          this._persistentIds.push(object.persistentId);
-          return;
-        default: {
-          throw error;
-        }
-      }
-    }
-
     // Maintain persistentIds updated with the very last received value
     this._persistentIds.push(object.persistentId);
     // Send notification
-    this.emit('ON_NOTIFICATION_RECEIVED', {
-      notification : message,
-      // Needs to be saved by the client
-      persistentId : object.persistentId,
-    });
+    this.emit('ON_NOTIFICATION_RECEIVED', object);
   }
 };

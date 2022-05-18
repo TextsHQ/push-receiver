@@ -22,7 +22,9 @@ const {
   kStreamErrorStanzaTag,
 } = require('./constants');
 
-const DEBUG = () => {};
+const DEBUG = data => {
+  data;
+};
 // uncomment the line below to output debug messages
 // const DEBUG = console.log;
 
@@ -204,7 +206,7 @@ module.exports = class Parser extends EventEmitter {
     // Messages with no content are valid; just use the default protobuf for
     // that tag.
     if (this._messageSize === 0) {
-      this.emit('message', {tag: this._messageTag, object: {}});
+      this.emit('message', { tag : this._messageTag, object : {} });
       this._getNextMessage();
       return;
     }
@@ -230,7 +232,7 @@ module.exports = class Parser extends EventEmitter {
       bytes : Buffer,
     });
 
-    this.emit('message', {tag: this._messageTag, object: object});
+    this.emit('message', { tag : this._messageTag, object : object });
 
     if (this._messageTag === kLoginResponseTag) {
       if (this._handshakeComplete) {
