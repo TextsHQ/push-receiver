@@ -4,6 +4,9 @@
   "description":
     "A module to subscribe to GCM/FCM and receive notifications within a node process.",
   "main": "src/index.js",
+  "files": [
+    "src/**/*"
+  ],
   "scripts": {
     "start": "node scripts/listen",
     "register": "node scripts/register",
