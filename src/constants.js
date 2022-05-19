@@ -29,6 +29,15 @@ module.exports = {
   // The current MCS protocol version.
   kMCSVersion : 41,
 
+  kChromeVersion : '101.0.4951.64',
+
+  // tokens expire in 90 days (expressed here in seconds) by default
+  kDefaultTTL             : 90 * 24 * 60 * 60,
+  // 2 days
+  kDefaultCheckinInterval : 2 * 24 * 60 * 60,
+  // 12 hours
+  kMinimumCheckinInterval : 12 * 60 * 60,
+
   // MCS Message tags.
   // WARNING: the order of these tags must remain the same, as the tag values
   // must be consistent with those used on the server.

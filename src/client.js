@@ -5,11 +5,17 @@ const path = require('path');
 const tls = require('tls');
 const {
   kMCSVersion,
+  kChromeVersion,
+  kMinimumCheckinInterval,
+  kDefaultCheckinInterval,
   kLoginRequestTag,
   kDataMessageStanzaTag,
   kLoginResponseTag,
 } = require('./constants');
 const { load } = require('protobufjs');
+const { checkIn, register } = require('./gcm');
+const FileStore = require('./file-store');
+const { clearInterval } = require('timers');
 
 const HOST = 'mtalk.google.com';
 const PORT = 5228;
@@ -18,27 +24,50 @@ const MAX_RETRY_TIMEOUT = 15;
 let proto = null;
 
 module.exports = class Client extends EventEmitter {
-  static async init() {
+  static async _init() {
     if (proto) {
       return;
     }
     proto = await load(path.resolve(__dirname, 'mcs.proto'));
   }
 
-  constructor(clientInfo, persistentIds) {
+  // pass a string as dataStore to use file-backed storage at that path
+  constructor(dataStore, options = {}) {
     super();
-    this._clientInfo = clientInfo;
-    this._persistentIds = persistentIds || [];
+    if (typeof dataStore === 'string') {
+      this._dataStorePath = dataStore;
+    } else if (typeof dataStore === 'object') {
+      this._dataStore = dataStore;
+    } else {
+      throw new Error('dataStore must be a string or an object');
+    }
     this._retryCount = 0;
     this._onSocketConnect = this._onSocketConnect.bind(this);
     this._onSocketClose = this._onSocketClose.bind(this);
     this._onSocketError = this._onSocketError.bind(this);
     this._onMessage = this._onMessage.bind(this);
     this._onParserError = this._onParserError.bind(this);
+    this._checkInInterval =
+      typeof options.checkInInterval === 'number'
+        ? Math.max(options.checkInInterval, kMinimumCheckinInterval)
+        : kDefaultCheckinInterval;
   }
 
   async connect() {
-    await Client.init();
+    await Client._init();
+
+    if (this._dataStorePath) {
+      this._dataStore = await FileStore.create(this._dataStorePath);
+    }
+
+    this._checkInTimer = setInterval(() => {
+      this._checkIn();
+    }, this._checkInInterval * 1000);
+    await this._checkIn();
+
+    // TODO: Implement heartbeat?
+    // https://github.com/chromium/chromium/blob/8ff502b4d8b0b85fd4cda215cce617ea4a3c29a6/google_apis/gcm/engine/heartbeat_manager.cc
+
     this._connect();
     // can happen if the socket immediately closes after being created
     if (!this._socket) {
@@ -58,17 +87,26 @@ module.exports = class Client extends EventEmitter {
     this._destroy();
   }
 
+  // pass { appId: <existing app id> } to renew
+  async register(authorizedEntity, options = {}) {
+    return register(this._dataStore.clientInfo, authorizedEntity, options);
+  }
+
+  async _checkIn() {
+    this._dataStore.clientInfo = await checkIn(this._dataStore.clientInfo);
+  }
+
   _connect() {
-    this._socket = new tls.TLSSocket();
+    this._socket = tls.connect(PORT, HOST, { servername : HOST });
     this._socket.setKeepAlive(true);
     this._socket.on('connect', this._onSocketConnect);
     this._socket.on('close', this._onSocketClose);
     this._socket.on('error', this._onSocketError);
-    this._socket.connect({ host : HOST, port : PORT });
     this._socket.write(this._loginBuffer());
   }
 
   _destroy() {
+    clearInterval(this._checkInInterval);
     clearTimeout(this._retryTimeout);
     if (this._socket) {
       this._socket.removeListener('connect', this._onSocketConnect);
@@ -87,24 +125,24 @@ module.exports = class Client extends EventEmitter {
 
   _loginBuffer() {
     const LoginRequestType = proto.lookupType('mcs_proto.LoginRequest');
-    const hexAndroidId = Long.fromString(this._clientInfo.androidId).toString(
-      16
-    );
+    const hexAndroidId = Long.fromString(
+      this._dataStore.clientInfo.androidId
+    ).toString(16);
     const loginRequest = {
       adaptiveHeartbeat    : false,
       authService          : 2,
-      authToken            : this._clientInfo.securityToken,
-      id                   : 'chrome-63.0.3234.0',
+      authToken            : this._dataStore.clientInfo.securityToken,
+      id                   : `chrome-${kChromeVersion}`,
       domain               : 'mcs.android.com',
       deviceId             : `android-${hexAndroidId}`,
       networkType          : 1,
-      resource             : this._clientInfo.androidId,
-      user                 : this._clientInfo.androidId,
+      resource             : this._dataStore.clientInfo.androidId,
+      user                 : this._dataStore.clientInfo.androidId,
       useRmq2              : true,
       setting              : [{ name : 'new_vc', value : '1' }],
       // Id of the last notification received
       clientEvent          : [],
-      receivedPersistentId : this._persistentIds,
+      receivedPersistentId : this._dataStore.allPersistentIds(),
     };
 
     const errorMessage = LoginRequestType.verify(loginRequest);
@@ -150,19 +188,19 @@ module.exports = class Client extends EventEmitter {
     if (tag === kLoginResponseTag) {
       // clear persistent ids, as we just sent them to the server while logging
       // in
-      this._persistentIds = [];
+      this._dataStore.clearPersistentIds();
     } else if (tag === kDataMessageStanzaTag) {
       this._onDataMessage(object);
     }
   }
 
   _onDataMessage(object) {
-    if (this._persistentIds.includes(object.persistentId)) {
+    if (this._dataStore.hasPersistentId(object.persistentId)) {
       return;
     }
     // Maintain persistentIds updated with the very last received value
-    this._persistentIds.push(object.persistentId);
+    this._dataStore.addPersistentId(object.persistentId);
     // Send notification
-    this.emit('ON_NOTIFICATION_RECEIVED', object);
+    this.emit('notification', object);
   }
 };

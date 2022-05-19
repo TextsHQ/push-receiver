@@ -1,9 +1,10 @@
 const path = require('path');
-const request = require('../utils/request');
+const request = require('./utils/request');
 const protobuf = require('protobufjs');
 const Long = require('long');
-const { waitFor } = require('../utils/timeout');
-const { toBase64 } = require('../utils/base64');
+const { kChromeVersion, kDefaultTTL } = require('./constants');
+const { waitFor } = require('./utils/timeout');
+const { toBase64 } = require('./utils/base64');
 const { promisify } = require('util');
 const { randomBytes } = require('crypto');
 const uuidv4 = require('uuid/v4');
@@ -66,11 +67,15 @@ async function checkIn(lastClientInfo) {
 
 async function register(
   { androidId, securityToken, instanceId },
-  authorizedEntity
+  authorizedEntity,
+  options
 ) {
-  const appId = createAppId();
+  const appId =
+    typeof options.appId === 'string' ? options.appId : createAppId();
+  const ttl = typeof options.ttl === 'number' ? options.ttl : kDefaultTTL;
+  const expiry = ttl === 0 ? null : new Date(Date.now() + ttl * 1000);
 
-  const options = {
+  const reqOptions = {
     url     : REGISTER_URL,
     method  : 'POST',
     headers : {
@@ -82,18 +87,22 @@ async function register(
       'X-scope'   : 'GCM',
       sender      : authorizedEntity,
       appid       : instanceId,
-      gmsv        : '101', // major chrome version
-      ttl         : (90 * 24 * 60 * 60).toString(), // 90 days
+      gmsv        : kChromeVersion.split('.')[0], // major chrome version
       app         : 'com.texts.push',
       'X-subtype' : appId,
       device      : androidId,
+      ...(ttl === 0
+        ? {}
+        : {
+            ttl : ttl.toString(),
+          }),
     },
   };
 
   let response = null;
   const MAX_ATTEMPTS = 5;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
-    const _response = await request(options);
+    const _response = await request(reqOptions);
     if (_response.includes('Error')) {
       console.warn(`Register request has failed with ${_response}`);
       if (attempt !== MAX_ATTEMPTS - 1) {
@@ -106,8 +115,13 @@ async function register(
     }
   }
 
-  const token = response.split('=')[1];
-  return { token, appId };
+  const token = response.split('token=')[1];
+  const endpoint = `https://fcm.googleapis.com/fcm/send/${token}`;
+  return {
+    endpoint,
+    appId,
+    expiry,
+  };
 }
 
 async function loadProtoFile() {
@@ -131,7 +145,7 @@ function getCheckinRequest(androidId, securityToken) {
       type        : 3,
       chromeBuild : {
         platform      : 2,
-        chromeVersion : '63.0.3234.0',
+        chromeVersion : kChromeVersion,
         channel       : 1,
       },
     },

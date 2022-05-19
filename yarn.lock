@@ -1523,13 +1523,6 @@ http-signature@~1.2.0:
     jsprim "^1.2.2"
     sshpk "^1.7.0"
 
-http_ece@^1.0.5:
-  version "1.0.5"
-  resolved "https://registry.npmjs.org/http_ece/-/http_ece-1.0.5.tgz"
-  integrity sha1-tgZg+q8UIVEC0Uk+pyDc2StTNy8=
-  dependencies:
-    urlsafe-base64 "~1.0.0"
-
 husky@^0.14.3:
   version "0.14.3"
   resolved "https://registry.npmjs.org/husky/-/husky-0.14.3.tgz"
@@ -3835,11 +3828,6 @@ ultron@~1.1.0:
   version "1.1.1"
   resolved "https://registry.npmjs.org/ultron/-/ultron-1.1.1.tgz"
   integrity sha512-UIEXBNeYmKptWH6z8ZnqTeS8fV74zG0/eRU9VGkpzz+LIJNs8W/zM/L+7ctCkRrgbNnnR0xxw4bKOr0cW0N0Og==
-
-urlsafe-base64@~1.0.0:
-  version "1.0.0"
-  resolved "https://registry.npmjs.org/urlsafe-base64/-/urlsafe-base64-1.0.0.tgz"
-  integrity sha1-I/iQaabGL0bPOh07ABac77kL4MY=
 
 util-deprecate@~1.0.1:
   version "1.0.2"
