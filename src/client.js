@@ -15,7 +15,6 @@ const {
 const { load } = require('protobufjs');
 const { checkIn, register } = require('./gcm');
 const FileStore = require('./file-store');
-const { clearInterval } = require('timers');
 
 const HOST = 'mtalk.google.com';
 const PORT = 5228;
@@ -53,17 +52,29 @@ module.exports = class Client extends EventEmitter {
         : kDefaultCheckinInterval;
   }
 
-  async connect() {
+  async _doInit() {
     await Client._init();
-
     if (this._dataStorePath) {
       this._dataStore = await FileStore.create(this._dataStorePath);
     }
-
-    this._checkInTimer = setInterval(() => {
+    this._checkInHandle = setInterval(() => {
       this._checkIn();
     }, this._checkInInterval * 1000);
+    this._checkInHandle.unref();
     await this._checkIn();
+  }
+
+  async _ensureInit() {
+    if (this._initPromise) {
+      await this._initPromise;
+      return;
+    }
+    this._initPromise = this._doInit();
+    return this._initPromise;
+  }
+
+  async _startListening() {
+    await this._ensureInit();
 
     // TODO: Implement heartbeat?
     // https://github.com/chromium/chromium/blob/8ff502b4d8b0b85fd4cda215cce617ea4a3c29a6/google_apis/gcm/engine/heartbeat_manager.cc
@@ -83,12 +94,18 @@ module.exports = class Client extends EventEmitter {
     this._parser.on('error', this._onParserError);
   }
 
-  destroy() {
-    this._destroy();
+  startListening() {
+    this._startListening();
+  }
+
+  stopListening() {
+    this._stopListening();
   }
 
   // pass { appId: <existing app id> } to renew
+  // you don't need to startListening() for this
   async register(authorizedEntity, options = {}) {
+    await this._ensureInit();
     return register(this._dataStore.clientInfo, authorizedEntity, options);
   }
 
@@ -105,8 +122,7 @@ module.exports = class Client extends EventEmitter {
     this._socket.write(this._loginBuffer());
   }
 
-  _destroy() {
-    clearInterval(this._checkInInterval);
+  _stopListening() {
     clearTimeout(this._retryTimeout);
     if (this._socket) {
       this._socket.removeListener('connect', this._onSocketConnect);
@@ -179,9 +195,9 @@ module.exports = class Client extends EventEmitter {
   }
 
   _retry() {
-    this._destroy();
+    this._stopListening();
     const timeout = Math.min(++this._retryCount, MAX_RETRY_TIMEOUT) * 1000;
-    this._retryTimeout = setTimeout(this.connect.bind(this), timeout);
+    this._retryTimeout = setTimeout(this.startListening.bind(this), timeout);
   }
 
   _onMessage({ tag, object }) {

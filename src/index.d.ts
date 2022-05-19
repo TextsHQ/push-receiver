@@ -58,8 +58,8 @@ type Notification = {
 
 export = class Client extends EventEmitter {
   constructor(dataStore: DataStore, options?: ClientOptions)
-  async connect(): Promise<void>
-  destroy(): void
+  startListening(): void
+  stopListening(): void
   async register(authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult>
 
   on(event: 'connect', listener: () => void): this

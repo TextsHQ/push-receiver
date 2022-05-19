@@ -9,7 +9,7 @@ if (!senderId) {
 
 (async () => {
   const client = new Client(__dirname + '/client.json');
-  await client.connect();
+  client.startListening();
   client.on('notification', notification => {
     console.log('Notification received');
     console.log(notification);
