@@ -16,6 +16,7 @@ interface RegisterOptions {
 type RegisterResult = {
   token: string
   appId: string
+  instanceId: string
   expiry: Date
 }
 
