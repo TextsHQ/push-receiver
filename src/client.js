@@ -104,9 +104,9 @@ module.exports = class Client extends EventEmitter {
 
   // pass { appId: <existing app id> } to renew
   // you don't need to startListening() for this
-  async register(authorizedEntity, options = {}) {
+  async register(type, authorizedEntity, options = {}) {
     await this._ensureInit();
-    return register(this._dataStore.clientInfo, authorizedEntity, options);
+    return register(this._dataStore.clientInfo, type, authorizedEntity, options);
   }
 
   async _checkIn() {

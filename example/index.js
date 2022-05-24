@@ -14,6 +14,6 @@ if (!senderId) {
     console.log('Notification received');
     console.log(notification);
   });
-  const registrationInfo = await client.register(senderId);
+  const registrationInfo = await client.register('web', senderId);
   console.log(registrationInfo);
 })();

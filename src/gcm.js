@@ -33,13 +33,19 @@ async function createInstanceId() {
   return toBase64(instanceIdBuf);
 }
 
-function createAppId() {
-  return `wp:texts.com#${uuidv4().slice(0, -3)}-V2`;
+function createAppId(type) {
+  if (type === 'android') {
+    return `com.texts.push-app.${uuidv4()}`;
+  } else if (type === 'web') {
+    return `wp:texts.com#${uuidv4().slice(0, -3)}-V2`;
+  } else {
+    throw new Error('unknown token type');
+  }
 }
 
 // takes in client info (or null), returns refreshed client info
 async function checkIn(lastClientInfo) {
-  const { androidId = null, securityToken = null, instanceId = null } =
+  const { androidId = null, securityToken = null } =
     lastClientInfo || {};
   await loadProtoFile();
   const buffer = getCheckinRequest(androidId, securityToken);
@@ -61,17 +67,17 @@ async function checkIn(lastClientInfo) {
   return {
     androidId     : object.androidId,
     securityToken : object.securityToken,
-    instanceId    : instanceId || (await createInstanceId()),
   };
 }
 
 async function register(
-  { androidId, securityToken, instanceId },
+  { androidId, securityToken },
+  type,
   authorizedEntity,
   options
 ) {
   const appId =
-    typeof options.appId === 'string' ? options.appId : createAppId();
+    typeof options.appId === 'string' ? options.appId : createAppId(type);
   const ttl = typeof options.ttl === 'number' ? options.ttl : kDefaultTTL;
   const expiry = ttl === 0 ? null : new Date(Date.now() + ttl * 1000);
 
@@ -86,22 +92,23 @@ async function register(
       scope       : 'GCM',
       'X-scope'   : 'GCM',
       sender      : authorizedEntity,
-      appid       : instanceId,
+      appid       : '',
       gmsv        : kChromeVersion.split('.')[0], // major chrome version
       app         : 'com.texts.push',
       'X-subtype' : appId,
       device      : androidId,
-      ...(ttl === 0
-        ? {}
-        : {
-            ttl : ttl.toString(),
-          }),
+      ...(ttl === 0 ? {} : {
+        ttl : ttl.toString(),
+      }),
     },
   };
 
+  let instanceId;
   let response = null;
   const MAX_ATTEMPTS = 5;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
+    instanceId = typeof options.instanceId === 'string' ? options.instanceId : await createInstanceId();
+    reqOptions.form.appid = instanceId;
     const _response = await request(reqOptions);
     if (_response.includes('Error')) {
       console.warn(`Register request has failed with ${_response}`);
@@ -116,10 +123,10 @@ async function register(
   }
 
   const token = response.split('token=')[1];
-  const endpoint = `https://fcm.googleapis.com/fcm/send/${token}`;
   return {
-    endpoint,
+    token : type === 'android' ? token : `https://fcm.googleapis.com/fcm/send/${token}`,
     appId,
+    instanceId,
     expiry,
   };
 }

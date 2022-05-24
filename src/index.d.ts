@@ -8,12 +8,13 @@ interface ClientOptions {
 interface RegisterOptions {
   // specify an existing app id (before expiry) to renew its subscription
   appId?: string
+  instanceId?: string
   // how long the token lasts, in seconds
   ttl?: number
 }
 
 type RegisterResult = {
-  endpoint: string
+  token: string
   appId: string
   expiry: Date
 }
@@ -60,7 +61,7 @@ export = class Client extends EventEmitter {
   constructor(dataStore: DataStore, options?: ClientOptions)
   startListening(): void
   stopListening(): void
-  async register(authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult>
+  async register(type: 'web' | 'android', authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult>
 
   on(event: 'connect', listener: () => void): this
   on(event: 'disconnect', listener: () => void): this
