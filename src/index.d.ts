@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import { EventEmitter } from 'events'
 
 interface ClientOptions {
   // the period with which to check in
