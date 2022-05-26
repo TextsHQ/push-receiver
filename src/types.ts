@@ -1,3 +1,5 @@
+export type Awaitable<T> = T | PromiseLike<T>
+
 export interface ClientOptions {
   // the period with which to check in
   checkInInterval?: number
@@ -27,10 +29,11 @@ export interface ClientInfo {
 export interface DataStore {
   get clientInfo(): ClientInfo | null
   set clientInfo(newValue: ClientInfo)
-  allPersistentIds(): string[]
-  clearPersistentIds(): void
-  hasPersistentId(id: string): boolean
-  addPersistentId(id: string): void
+
+  allPersistentIds(): Awaitable<string[]>
+  clearPersistentIds(): Awaitable<void>
+  hasPersistentId(id: string): Awaitable<boolean>
+  addPersistentId(id: string): Awaitable<void>
 }
 
 export type Notification = {

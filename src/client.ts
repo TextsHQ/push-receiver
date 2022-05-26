@@ -141,13 +141,13 @@ class Client extends EventEmitter {
     this._dataStore.clientInfo = await checkIn(this._dataStore.clientInfo)
   }
 
-  _connect() {
+  async _connect() {
     this._socket = tls.connect(PORT, HOST, { servername: HOST })
     this._socket.setKeepAlive(true)
     this._socket.on('connect', this._onSocketConnect)
     this._socket.on('close', this._onSocketClose)
     this._socket.on('error', this._onSocketError)
-    this._socket.write(this._loginBuffer())
+    this._socket.write(await this._loginBuffer())
   }
 
   _stopListening() {
@@ -167,11 +167,9 @@ class Client extends EventEmitter {
     }
   }
 
-  _loginBuffer() {
+  async _loginBuffer() {
     const LoginRequestType = proto.lookupType('mcs_proto.LoginRequest')
-    const hexAndroidId = Long.fromString(
-      this._dataStore.clientInfo.androidId,
-    ).toString(16)
+    const hexAndroidId = Long.fromString(this._dataStore.clientInfo.androidId).toString(16)
     const loginRequest = {
       adaptiveHeartbeat: false,
       authService: 2,
@@ -186,7 +184,7 @@ class Client extends EventEmitter {
       setting: [{ name: 'new_vc', value: '1' }],
       // Id of the last notification received
       clientEvent: [],
-      receivedPersistentId: this._dataStore.allPersistentIds(),
+      receivedPersistentId: await this._dataStore.allPersistentIds(),
     }
 
     const errorMessage = LoginRequestType.verify(loginRequest)
@@ -228,22 +226,22 @@ class Client extends EventEmitter {
     this._retryTimeout = setTimeout(this.startListening.bind(this), timeout)
   }
 
-  _onMessage({ tag, object }) {
+  async _onMessage({ tag, object }) {
     if (tag === kLoginResponseTag) {
       // clear persistent ids, as we just sent them to the server while logging
       // in
-      this._dataStore.clearPersistentIds()
+      await this._dataStore.clearPersistentIds()
     } else if (tag === kDataMessageStanzaTag) {
-      this._onDataMessage(object)
+      await this._onDataMessage(object)
     }
   }
 
-  _onDataMessage(object) {
-    if (this._dataStore.hasPersistentId(object.persistentId)) {
+  async _onDataMessage(object) {
+    if (await this._dataStore.hasPersistentId(object.persistentId)) {
       return
     }
     // Maintain persistentIds updated with the very last received value
-    this._dataStore.addPersistentId(object.persistentId)
+    await this._dataStore.addPersistentId(object.persistentId)
     // Send notification
     this.emit('notification', object)
   }

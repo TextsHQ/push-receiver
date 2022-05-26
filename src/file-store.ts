@@ -63,16 +63,16 @@ export default class FileStore implements DataStore {
     this._setNeedsSave()
   }
 
-  hasPersistentId(id) {
+  hasPersistentId(id: string) {
     return this._data.persistentIds.has(id)
   }
 
-  addPersistentId(id) {
+  addPersistentId(id: string) {
     this._data.persistentIds.add(id)
     this._setNeedsSave()
   }
 
-  static async create(path) {
+  static async create(path: string) {
     const store = new FileStore(symbol, path)
     await store._init()
     return store
