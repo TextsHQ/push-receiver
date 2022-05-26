@@ -1,11 +1,9 @@
-import { EventEmitter } from 'events'
-
-interface ClientOptions {
+export interface ClientOptions {
   // the period with which to check in
   checkInInterval?: number
 }
 
-interface RegisterOptions {
+export interface RegisterOptions {
   // specify an existing app id (before expiry) to renew its subscription
   appId?: string
   instanceId?: string
@@ -13,20 +11,20 @@ interface RegisterOptions {
   ttl?: number
 }
 
-type RegisterResult = {
+export type RegisterResult = {
   token: string
   appId: string
   instanceId: string
   expiry: Date
 }
 
-interface ClientInfo {
+export interface ClientInfo {
   androidId: string
   securityToken: string
   instanceId: string
 }
 
-interface CustomDataStore {
+export interface CustomDataStore {
   get clientInfo(): ClientInfo | null
   set clientInfo(newValue: ClientInfo)
   allPersistentIds(): string[]
@@ -36,9 +34,9 @@ interface CustomDataStore {
 }
 
 // file path (to use disk) or a custom store
-type DataStore = string | CustomDataStore
+export type DataStore = string | CustomDataStore
 
-type Notification = {
+export type Notification = {
   // This is the message ID, set by client.
   id?: string
   // applicationServerKey of the sender.
@@ -56,16 +54,4 @@ type Notification = {
   sent?: string
   // Optional field containing the binary payload of the message.
   rawData?: Buffer
-}
-
-export = class Client extends EventEmitter {
-  constructor(dataStore: DataStore, options?: ClientOptions)
-  startListening(): void
-  stopListening(): void
-  async register(type: 'web' | 'android', authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult>
-
-  on(event: 'connect', listener: () => void): this
-  on(event: 'disconnect', listener: () => void): this
-  on(event: 'notification', listener: (notification: Notification) => void): this
-  on(event: string, listener: Function): this
 }

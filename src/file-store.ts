@@ -1,9 +1,13 @@
 import { readFile, writeFile } from 'fs/promises'
+import type { CustomDataStore } from './types'
 
 const symbol = Symbol('FileStore')
 
-export default class FileStore {
-  _data
+export default class FileStore implements CustomDataStore {
+  private _data: {
+    clientInfo: any
+    persistentIds: Set<string>
+  }
 
   private constructor(sym: symbol, readonly _path: string) {
     if (sym !== symbol) {

@@ -8,6 +8,7 @@ import Parser from './parser'
 import constants from './constants'
 import { checkIn, register } from './gcm'
 import FileStore from './file-store'
+import type { DataStore, ClientOptions, RegisterOptions, RegisterResult } from './types'
 
 const {
   kMCSVersion,
@@ -25,7 +26,14 @@ const MAX_RETRY_TIMEOUT = 15
 
 let proto = null
 
-export default class Client extends EventEmitter {
+declare interface Client {
+  on(event: 'connect', listener: () => void): this
+  on(event: 'disconnect', listener: () => void): this
+  on(event: 'notification', listener: (notification: Notification) => void): this
+  on(event: string, listener: Function): this
+}
+
+class Client extends EventEmitter {
   _dataStorePath: string
 
   _retryCount: number
@@ -52,7 +60,7 @@ export default class Client extends EventEmitter {
   }
 
   // pass a string as dataStore to use file-backed storage at that path
-  constructor(dataStore: string | object, options: any = {}) {
+  constructor(dataStore: DataStore, options: ClientOptions = {}) {
     super()
     if (typeof dataStore === 'string') {
       this._dataStorePath = dataStore
@@ -114,17 +122,17 @@ export default class Client extends EventEmitter {
     this._parser.on('error', this._onParserError)
   }
 
-  startListening() {
+  startListening(): void {
     this._startListening()
   }
 
-  stopListening() {
+  stopListening(): void {
     this._stopListening()
   }
 
   // pass { appId: <existing app id> } to renew
   // you don't need to startListening() for this
-  async register(type, authorizedEntity, options = {}) {
+  async register(type: 'web' | 'android', authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult> {
     await this._ensureInit()
     return register(this._dataStore.clientInfo, type, authorizedEntity, options)
   }
@@ -240,3 +248,5 @@ export default class Client extends EventEmitter {
     this.emit('notification', object)
   }
 }
+
+export default Client
