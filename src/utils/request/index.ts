@@ -1,14 +1,10 @@
 import request from 'request-promise'
-import { waitFor } from '../timeout'
+import { setTimeout as waitFor } from 'timers/promises'
 
 // In seconds
 const MAX_RETRY_TIMEOUT = 15
 // Step in seconds
 const RETRY_STEP = 5
-
-export default function requestWithRety(...args) {
-  return retry(0, ...args)
-}
 
 async function retry(retryCount = 0, ...args) {
   try {
@@ -22,4 +18,8 @@ async function retry(retryCount = 0, ...args) {
     const result = await retry(retryCount + 1, ...args)
     return result
   }
+}
+
+export default function requestWithRety(...args) {
+  return retry(0, ...args)
 }

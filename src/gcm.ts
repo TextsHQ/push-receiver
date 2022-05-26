@@ -4,10 +4,10 @@ import Long from 'long'
 import { promisify } from 'util'
 import { randomBytes } from 'crypto'
 import uuidv4 from 'uuid/v4'
-import constants from './constants'
+import { setTimeout as waitFor } from 'timers/promises'
 
+import constants from './constants'
 import request from './utils/request'
-import { waitFor } from './utils/timeout'
 import { toBase64 } from './utils/base64'
 
 const { kChromeVersion, kDefaultTTL } = constants
@@ -38,6 +38,43 @@ function createAppId(type) {
     return `wp:texts.com#${uuidv4().slice(0, -3)}-V2`
   }
   throw new Error('unknown token type')
+}
+
+async function loadProtoFile() {
+  if (root) {
+    return
+  }
+  root = await protobuf.load(path.join(__dirname, 'checkin.proto'))
+  return root
+}
+
+function getCheckinRequest(androidId, securityToken) {
+  const AndroidCheckinRequest = root.lookupType(
+    'checkin_proto.AndroidCheckinRequest',
+  )
+  AndroidCheckinResponse = root.lookupType(
+    'checkin_proto.AndroidCheckinResponse',
+  )
+  const payload = {
+    userSerialNumber: 0,
+    checkin: {
+      type: 3,
+      chromeBuild: {
+        platform: 2,
+        chromeVersion: kChromeVersion,
+        channel: 1,
+      },
+    },
+    version: 3,
+    id: androidId ? Long.fromString(androidId) : undefined,
+    securityToken: securityToken
+      ? Long.fromString(securityToken, true)
+      : undefined,
+  }
+  const errMsg = AndroidCheckinRequest.verify(payload)
+  if (errMsg) throw Error(errMsg)
+  const message = AndroidCheckinRequest.create(payload)
+  return AndroidCheckinRequest.encode(message).finish()
 }
 
 // takes in client info (or null), returns refreshed client info
@@ -124,41 +161,4 @@ export async function register(
     instanceId,
     expiry,
   }
-}
-
-async function loadProtoFile() {
-  if (root) {
-    return
-  }
-  root = await protobuf.load(path.join(__dirname, 'checkin.proto'))
-  return root
-}
-
-function getCheckinRequest(androidId, securityToken) {
-  const AndroidCheckinRequest = root.lookupType(
-    'checkin_proto.AndroidCheckinRequest',
-  )
-  AndroidCheckinResponse = root.lookupType(
-    'checkin_proto.AndroidCheckinResponse',
-  )
-  const payload = {
-    userSerialNumber: 0,
-    checkin: {
-      type: 3,
-      chromeBuild: {
-        platform: 2,
-        chromeVersion: kChromeVersion,
-        channel: 1,
-      },
-    },
-    version: 3,
-    id: androidId ? Long.fromString(androidId) : undefined,
-    securityToken: securityToken
-      ? Long.fromString(securityToken, true)
-      : undefined,
-  }
-  const errMsg = AndroidCheckinRequest.verify(payload)
-  if (errMsg) throw Error(errMsg)
-  const message = AndroidCheckinRequest.create(payload)
-  return AndroidCheckinRequest.encode(message).finish()
 }

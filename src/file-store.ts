@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'fs/promises'
 
-const symbol = Symbol()
+const symbol = Symbol('FileStore')
 
 export default class FileStore {
   _data
