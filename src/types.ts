@@ -24,7 +24,7 @@ export interface ClientInfo {
   instanceId: string
 }
 
-export interface CustomDataStore {
+export interface DataStore {
   get clientInfo(): ClientInfo | null
   set clientInfo(newValue: ClientInfo)
   allPersistentIds(): string[]
@@ -32,9 +32,6 @@ export interface CustomDataStore {
   hasPersistentId(id: string): boolean
   addPersistentId(id: string): void
 }
-
-// file path (to use disk) or a custom store
-export type DataStore = string | CustomDataStore
 
 export type Notification = {
   // This is the message ID, set by client.

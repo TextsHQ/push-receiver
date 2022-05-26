@@ -56,11 +56,11 @@ class Client extends EventEmitter {
     if (proto) {
       return
     }
-    proto = await load(path.resolve(__dirname, 'mcs.proto'))
+    proto = await load(path.resolve(__dirname, 'protos/mcs.proto'))
   }
 
-  // pass a string as dataStore to use file-backed storage at that path
-  constructor(dataStore: DataStore, options: ClientOptions = {}) {
+  // file path (to use disk) or a custom store
+  constructor(dataStore: string | DataStore, options: ClientOptions = {}) {
     super()
     if (typeof dataStore === 'string') {
       this._dataStorePath = dataStore

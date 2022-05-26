@@ -64,7 +64,7 @@ export default class Parser extends EventEmitter {
     if (proto) {
       return
     }
-    proto = await load(path.resolve(__dirname, 'mcs.proto'))
+    proto = await load(path.resolve(__dirname, 'protos/mcs.proto'))
   }
 
   constructor(socket: tls.TLSSocket) {

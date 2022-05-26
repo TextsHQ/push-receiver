@@ -4,14 +4,14 @@
   "description": "A module to subscribe to GCM/FCM and receive notifications within a node process.",
   "main": "dist/index.js",
   "files": [
-    "src"
+    "dist"
   ],
   "scripts": {
     "start": "node scripts/listen",
     "register": "node scripts/register",
     "send": "node scripts/send",
-    "prepack": "tsc",
-    "build": "yarn tsc",
+    "prepack": "yarn build",
+    "build": "yarn tsc && cp -r src/protos dist",
     "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
     "test": "jest"
   },

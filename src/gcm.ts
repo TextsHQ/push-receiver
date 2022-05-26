@@ -44,7 +44,7 @@ async function loadProtoFile() {
   if (root) {
     return
   }
-  root = await protobuf.load(path.join(__dirname, 'checkin.proto'))
+  root = await protobuf.load(path.join(__dirname, 'protos/checkin.proto'))
   return root
 }
 
