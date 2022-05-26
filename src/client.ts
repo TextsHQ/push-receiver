@@ -8,7 +8,7 @@ import Parser from './parser'
 import constants from './constants'
 import { checkIn, register } from './gcm'
 import FileStore from './file-store'
-import type { DataStore, ClientOptions, RegisterOptions, RegisterResult } from './types'
+import type { DataStore, ClientOptions, RegisterOptions, RegisterResult, Notification } from './types'
 
 const {
   kMCSVersion,
