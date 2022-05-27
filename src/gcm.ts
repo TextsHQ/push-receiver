@@ -7,6 +7,7 @@ import constants from './constants'
 import request from './utils/request'
 import { toBase64 } from './utils/base64'
 import { checkin_proto } from './protos/checkin'
+import type { RegisterOptions } from './types'
 
 const { kChromeVersion, kDefaultTTL } = constants
 
@@ -21,18 +22,18 @@ async function createInstanceId() {
   return toBase64(instanceIdBuf)
 }
 
-function createAppId(type: 'web' | 'android') {
+function createAppId(type: 'web' | 'android', options: RegisterOptions) {
   switch (type) {
     case 'android':
-      return `com.texts.push-app.${randomUUID()}`
+      return `${options.androidAppIdPrefix}${randomUUID()}`
     case 'web':
-      return `wp:texts.com#${randomUUID().slice(0, -3)}-V2`
+      return `wp:${options.wpAppIdPrefix}${randomUUID().slice(0, -3)}-V2`
     default:
       throw new Error(`unknown token type: ${type}`)
   }
 }
 
-function getCheckinRequest(androidId, securityToken) {
+function getCheckinRequest(androidId: string, securityToken: string) {
   const payload = new checkin_proto.AndroidCheckinRequest({
     userSerialNumber: 0,
     checkin: {
@@ -53,7 +54,7 @@ function getCheckinRequest(androidId, securityToken) {
 }
 
 // takes in client info (or null), returns refreshed client info
-export async function checkIn(lastClientInfo) {
+export async function checkIn(lastClientInfo: { androidId: string, securityToken: string } | null) {
   const { androidId = null, securityToken = null } = lastClientInfo || {}
   const buffer = getCheckinRequest(androidId, securityToken)
   const body = await request({
@@ -80,10 +81,10 @@ export async function checkIn(lastClientInfo) {
 export async function register(
   { androidId, securityToken },
   type: 'web' | 'android',
-  authorizedEntity,
-  options,
+  authorizedEntity: string,
+  options: RegisterOptions,
 ) {
-  const appId = typeof options.appId === 'string' ? options.appId : createAppId(type)
+  const appId = typeof options.appId === 'string' ? options.appId : createAppId(type, options)
   const ttl = typeof options.ttl === 'number' ? options.ttl : kDefaultTTL
   const expiry = ttl === 0 ? null : new Date(Date.now() + ttl * 1000)
 
@@ -100,7 +101,7 @@ export async function register(
       sender: authorizedEntity,
       appid: '',
       gmsv: kChromeVersion.split('.')[0], // major chrome version
-      app: 'com.texts.push',
+      app: options.fcmAppName,
       'X-subtype': appId,
       device: androidId,
       ...(ttl === 0 ? {} : {

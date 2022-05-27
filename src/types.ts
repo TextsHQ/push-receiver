@@ -11,6 +11,10 @@ export interface RegisterOptions {
   instanceId?: string
   // how long the token lasts, in seconds
   ttl?: number
+
+  wpAppIdPrefix: string
+  androidAppIdPrefix: string
+  fcmAppName: string
 }
 
 export type RegisterResult = {
