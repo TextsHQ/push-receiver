@@ -22,12 +22,14 @@ async function createInstanceId() {
 }
 
 function createAppId(type: 'web' | 'android') {
-  if (type === 'android') {
-    return `com.texts.push-app.${randomUUID()}`
-  } if (type === 'web') {
-    return `wp:texts.com#${randomUUID().slice(0, -3)}-V2`
+  switch (type) {
+    case 'android':
+      return `com.texts.push-app.${randomUUID()}`
+    case 'web':
+      return `wp:texts.com#${randomUUID().slice(0, -3)}-V2`
+    default:
+      throw new Error(`unknown token type: ${type}`)
   }
-  throw new Error('unknown token type')
 }
 
 function getCheckinRequest(androidId, securityToken) {
