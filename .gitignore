@@ -1,4 +1,6 @@
 storage.json
+src/protos/*.js
+src/protos/*.d.ts
 web/
 .esm-cache
 test/keys.js

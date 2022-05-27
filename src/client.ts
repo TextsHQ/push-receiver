@@ -1,8 +1,7 @@
 import EventEmitter from 'events'
 import Long from 'long'
-import path from 'path'
 import tls from 'tls'
-import { load } from 'protobufjs'
+import { mcs_proto } from './protos/mcs'
 
 import Parser from './parser'
 import constants from './constants'
@@ -23,8 +22,6 @@ const {
 const HOST = 'mtalk.google.com'
 const PORT = 5228
 const MAX_RETRY_TIMEOUT = 15
-
-let proto = null
 
 declare interface Client {
   on(event: 'connect', listener: () => void): this
@@ -52,13 +49,6 @@ class Client extends EventEmitter {
 
   _dataStore
 
-  static async _init() {
-    if (proto) {
-      return
-    }
-    proto = await load(path.resolve(__dirname, 'protos/mcs.proto'))
-  }
-
   // file path (to use disk) or a custom store
   constructor(dataStore: string | DataStore, options: ClientOptions = {}) {
     super()
@@ -81,7 +71,6 @@ class Client extends EventEmitter {
   }
 
   async _doInit() {
-    await Client._init()
     if (this._dataStorePath) {
       this._dataStore = await FileStore.create(this._dataStorePath)
     }
@@ -112,7 +101,6 @@ class Client extends EventEmitter {
     if (!this._socket) {
       return
     }
-    await Parser.init()
     // can happen if the socket immediately closes after being created
     if (!this._socket) {
       return
@@ -168,9 +156,8 @@ class Client extends EventEmitter {
   }
 
   async _loginBuffer() {
-    const LoginRequestType = proto.lookupType('mcs_proto.LoginRequest')
     const hexAndroidId = Long.fromString(this._dataStore.clientInfo.androidId).toString(16)
-    const loginRequest = {
+    const loginRequest = new mcs_proto.LoginRequest({
       adaptiveHeartbeat: false,
       authService: 2,
       authToken: this._dataStore.clientInfo.securityToken,
@@ -185,14 +172,9 @@ class Client extends EventEmitter {
       // Id of the last notification received
       clientEvent: [],
       receivedPersistentId: await this._dataStore.allPersistentIds(),
-    }
+    })
 
-    const errorMessage = LoginRequestType.verify(loginRequest)
-    if (errorMessage) {
-      throw new Error(errorMessage)
-    }
-
-    const buffer = LoginRequestType.encodeDelimited(loginRequest).finish()
+    const buffer = mcs_proto.LoginRequest.encodeDelimited(loginRequest).finish()
 
     return Buffer.concat([
       Buffer.from([kMCSVersion, kLoginRequestTag]),

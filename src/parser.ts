@@ -1,8 +1,9 @@
 import EventEmitter from 'events'
-import path from 'path'
-import { load, BufferReader } from 'protobufjs'
+import { BufferReader } from 'protobufjs'
 import type tls from 'tls'
+
 import constants from './constants'
+import { mcs_proto } from './protos/mcs'
 
 const {
   MCS_VERSION_TAG_AND_SIZE,
@@ -31,8 +32,6 @@ const DEBUG = data => {
 // uncomment the line below to output debug messages
 // const DEBUG = console.log;
 
-let proto = null
-
 // Parser parses wire data from gcm.
 // This takes the role of WaitForData in the chromium connection handler.
 //
@@ -60,13 +59,6 @@ export default class Parser extends EventEmitter {
 
   _isWaitingForData
 
-  static async init() {
-    if (proto) {
-      return
-    }
-    proto = await load(path.resolve(__dirname, 'protos/mcs.proto'))
-  }
-
   constructor(socket: tls.TLSSocket) {
     super()
     this._socket = socket
@@ -86,12 +78,12 @@ export default class Parser extends EventEmitter {
     this._socket.removeListener('data', this._onData)
   }
 
-  _emitError(error) {
+  _emitError(error: Error) {
     this.destroy()
     this.emit('error', error)
   }
 
-  _onData(buffer) {
+  _onData(buffer: Buffer) {
     DEBUG(`Got data: ${buffer.length}`)
     this._data = Buffer.concat([this._data, buffer])
     if (this._isWaitingForData) {
@@ -271,24 +263,24 @@ export default class Parser extends EventEmitter {
     this._waitForData()
   }
 
-  _buildProtobufFromTag(tag) {
+  _buildProtobufFromTag(tag: number) {
     switch (tag) {
       case kHeartbeatPingTag:
-        return proto.lookupType('mcs_proto.HeartbeatPing')
+        return mcs_proto.HeartbeatPing
       case kHeartbeatAckTag:
-        return proto.lookupType('mcs_proto.HeartbeatAck')
+        return mcs_proto.HeartbeatAck
       case kLoginRequestTag:
-        return proto.lookupType('mcs_proto.LoginRequest')
+        return mcs_proto.LoginRequest
       case kLoginResponseTag:
-        return proto.lookupType('mcs_proto.LoginResponse')
+        return mcs_proto.LoginResponse
       case kCloseTag:
-        return proto.lookupType('mcs_proto.Close')
+        return mcs_proto.Close
       case kIqStanzaTag:
-        return proto.lookupType('mcs_proto.IqStanza')
+        return mcs_proto.IqStanza
       case kDataMessageStanzaTag:
-        return proto.lookupType('mcs_proto.DataMessageStanza')
+        return mcs_proto.DataMessageStanza
       case kStreamErrorStanzaTag:
-        return proto.lookupType('mcs_proto.StreamErrorStanza')
+        return mcs_proto.StreamErrorStanza
       default:
         return null
     }
