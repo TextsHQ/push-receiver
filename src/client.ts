@@ -47,7 +47,7 @@ class Client extends EventEmitter {
 
   _initPromise: Promise<void>
 
-  _dataStore
+  _dataStore: DataStore
 
   // file path (to use disk) or a custom store
   constructor(dataStore: string | DataStore, options: ClientOptions = {}) {

@@ -7,7 +7,7 @@ import constants from './constants'
 import request from './utils/request'
 import { toBase64 } from './utils/base64'
 import { checkin_proto } from './protos/checkin'
-import type { RegisterOptions } from './types'
+import type { ClientInfo, RegisterOptions } from './types'
 
 const { kChromeVersion, kDefaultTTL } = constants
 
@@ -54,7 +54,7 @@ function getCheckinRequest(androidId: string, securityToken: string) {
 }
 
 // takes in client info (or null), returns refreshed client info
-export async function checkIn(lastClientInfo: { androidId: string, securityToken: string } | null) {
+export async function checkIn(lastClientInfo: ClientInfo | null) {
   const { androidId = null, securityToken = null } = lastClientInfo || {}
   const buffer = getCheckinRequest(androidId, securityToken)
   const body = await request({
@@ -101,7 +101,7 @@ export async function register(
       sender: authorizedEntity,
       appid: '',
       gmsv: kChromeVersion.split('.')[0], // major chrome version
-      app: options.fcmAppName,
+      app: 'com.google.Chrome',
       'X-subtype': appId,
       device: androidId,
       ...(ttl === 0 ? {} : {

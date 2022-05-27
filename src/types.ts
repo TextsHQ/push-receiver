@@ -14,7 +14,6 @@ export interface RegisterOptions {
 
   wpAppIdPrefix: string
   androidAppIdPrefix: string
-  fcmAppName: string
 }
 
 export type RegisterResult = {
@@ -27,7 +26,6 @@ export type RegisterResult = {
 export interface ClientInfo {
   androidId: string
   securityToken: string
-  instanceId: string
 }
 
 export interface DataStore {
