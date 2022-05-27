@@ -1,18 +1,4 @@
 export default {
-  // enum ProcessingState
-  //
-  // Processing the version, tag, and size packets (assuming minimum length
-  // size packet). Only used during the login handshake.
-  MCS_VERSION_TAG_AND_SIZE: 0,
-  // Processing the tag and size packets (assuming minimum length size
-  // packet). Used for normal messages.
-  MCS_TAG_AND_SIZE: 1,
-  // Processing the size packet alone.
-  MCS_SIZE: 2,
-  // Processing the protocol buffer bytes (for those messages with non-zero
-  // sizes).
-  MCS_PROTO_BYTES: 3,
-
   // # of bytes a MCS version packet consumes.
   kVersionPacketLen: 1,
   // # of bytes a tag packet consumes.
@@ -31,32 +17,8 @@ export default {
 
   kChromeVersion: '101.0.4951.64',
 
-  // tokens expire in 90 days (expressed here in seconds) by default
-  kDefaultTTL: 90 * 24 * 60 * 60,
   // 2 days
   kDefaultCheckinInterval: 2 * 24 * 60 * 60,
   // 12 hours
   kMinimumCheckinInterval: 12 * 60 * 60,
-
-  // MCS Message tags.
-  // WARNING: the order of these tags must remain the same, as the tag values
-  // must be consistent with those used on the server.
-  // enum MCSProtoTag {
-  kHeartbeatPingTag: 0,
-  kHeartbeatAckTag: 1,
-  kLoginRequestTag: 2,
-  kLoginResponseTag: 3,
-  kCloseTag: 4,
-  kMessageStanzaTag: 5,
-  kPresenceStanzaTag: 6,
-  kIqStanzaTag: 7,
-  kDataMessageStanzaTag: 8,
-  kBatchPresenceStanzaTag: 9,
-  kStreamErrorStanzaTag: 10,
-  kHttpRequestTag: 11,
-  kHttpResponseTag: 12,
-  kBindAccountRequestTag: 13,
-  kBindAccountResponseTag: 14,
-  kTalkMetadataTag: 15,
-  kNumProtoTypes: 16,
 }

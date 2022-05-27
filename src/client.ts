@@ -5,18 +5,16 @@ import { mcs_proto } from './protos/mcs'
 
 import Parser from './parser'
 import constants from './constants'
-import { checkIn, register } from './gcm'
+import { checkIn, register, unregister } from './gcm'
 import FileStore from './file-store'
-import type { DataStore, ClientOptions, RegisterOptions, RegisterResult, Notification } from './types'
+import { typeToTag } from './mcs-tags'
+import type { DataStore, ClientOptions, RegisterOptions, RegisterResult, FCMMessage, AppInfo } from './types'
 
 const {
   kMCSVersion,
   kChromeVersion,
   kMinimumCheckinInterval,
   kDefaultCheckinInterval,
-  kLoginRequestTag,
-  kDataMessageStanzaTag,
-  kLoginResponseTag,
 } = constants
 
 const HOST = 'mtalk.google.com'
@@ -26,7 +24,7 @@ const MAX_RETRY_TIMEOUT = 15
 declare interface Client {
   on(event: 'connect', listener: () => void): this
   on(event: 'disconnect', listener: () => void): this
-  on(event: 'notification', listener: (notification: Notification) => void): this
+  on(event: 'message', listener: (message: FCMMessage) => void): this
   on(event: string, listener: Function): this
 }
 
@@ -118,11 +116,14 @@ class Client extends EventEmitter {
     this._stopListening()
   }
 
-  // pass { appId: <existing app id> } to renew
   // you don't need to startListening() for this
-  async register(type: 'web' | 'android', authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult> {
+  async register(authorizedEntity: string, options?: RegisterOptions): Promise<RegisterResult> {
     await this._ensureInit()
-    return register(this._dataStore.clientInfo, type, authorizedEntity, options)
+    return register(this._dataStore.clientInfo, authorizedEntity, options)
+  }
+
+  async unregister(authorizedEntity: string, app: AppInfo) {
+    return unregister(this._dataStore.clientInfo, authorizedEntity, app)
   }
 
   async _checkIn() {
@@ -159,11 +160,12 @@ class Client extends EventEmitter {
     const hexAndroidId = Long.fromString(this._dataStore.clientInfo.androidId).toString(16)
     const loginRequest = new mcs_proto.LoginRequest({
       adaptiveHeartbeat: false,
-      authService: 2,
+      authService: mcs_proto.LoginRequest.AuthService.ANDROID_ID,
       authToken: this._dataStore.clientInfo.securityToken,
       id: `chrome-${kChromeVersion}`,
       domain: 'mcs.android.com',
       deviceId: `android-${hexAndroidId}`,
+      // Chromium`net::NetworkChangeNotifier::CONNECTION_ETHERNET
       networkType: 1,
       resource: this._dataStore.clientInfo.androidId,
       user: this._dataStore.clientInfo.androidId,
@@ -177,7 +179,7 @@ class Client extends EventEmitter {
     const buffer = mcs_proto.LoginRequest.encodeDelimited(loginRequest).finish()
 
     return Buffer.concat([
-      Buffer.from([kMCSVersion, kLoginRequestTag]),
+      Buffer.from([kMCSVersion, typeToTag(mcs_proto.LoginRequest)]),
       buffer,
     ])
   }
@@ -208,24 +210,26 @@ class Client extends EventEmitter {
     this._retryTimeout = setTimeout(this.startListening.bind(this), timeout)
   }
 
-  async _onMessage({ tag, object }) {
-    if (tag === kLoginResponseTag) {
+  async _onMessage(object) {
+    if (object instanceof mcs_proto.LoginResponse) {
       // clear persistent ids, as we just sent them to the server while logging
       // in
       await this._dataStore.clearPersistentIds()
-    } else if (tag === kDataMessageStanzaTag) {
+    } else if (object instanceof mcs_proto.DataMessageStanza) {
       await this._onDataMessage(object)
+    } else {
+      console.log('received message', object)
     }
   }
 
-  async _onDataMessage(object) {
-    if (await this._dataStore.hasPersistentId(object.persistentId)) {
+  async _onDataMessage(msg: mcs_proto.DataMessageStanza) {
+    if (await this._dataStore.hasPersistentId(msg.persistentId)) {
       return
     }
     // Maintain persistentIds updated with the very last received value
-    await this._dataStore.addPersistentId(object.persistentId)
-    // Send notification
-    this.emit('notification', object)
+    await this._dataStore.addPersistentId(msg.persistentId)
+    // Send message
+    this.emit('message', msg)
   }
 }
 

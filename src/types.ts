@@ -1,3 +1,5 @@
+import type { mcs_proto } from "./protos/mcs"
+
 export type Awaitable<T> = T | PromiseLike<T>
 
 export interface ClientOptions {
@@ -5,22 +7,21 @@ export interface ClientOptions {
   checkInInterval?: number
 }
 
-export interface RegisterOptions {
-  // specify an existing app id (before expiry) to renew its subscription
-  appId?: string
-  instanceId?: string
-  // how long the token lasts, in seconds
-  ttl?: number
+export type AppInfo = {
+  appId: string
+  instanceId: string
+}
 
-  wpAppIdPrefix: string
-  androidAppIdPrefix: string
+export type RegisterOptions = {
+  // specify an existing app (before expiry) to renew its subscription
+  app?: AppInfo
+  expiry?: Date
 }
 
 export type RegisterResult = {
-  token: string
-  appId: string
-  instanceId: string
+  app: AppInfo
   expiry: Date
+  token: string
 }
 
 export interface ClientInfo {
@@ -38,22 +39,4 @@ export interface DataStore {
   addPersistentId(id: string): Awaitable<void>
 }
 
-export type Notification = {
-  // This is the message ID, set by client.
-  id?: string
-  // applicationServerKey of the sender.
-  from: string
-  // appId
-  category: string
-  // User data + GOOGLE. prefixed special entries.
-  appData: { key: string, value: string }[]
-  // Part of the ACK protocol, returned in DataMessageResponse on server side.
-  // It's part of the key of DMP.
-  persistentId?: string
-  // Time to live, in seconds.
-  ttl?: number
-  // Timestamp ( according to client ) when message was sent by app, in seconds.
-  sent?: string
-  // Optional field containing the binary payload of the message.
-  rawData?: Buffer
-}
+export type FCMMessage = mcs_proto.IDataMessageStanza

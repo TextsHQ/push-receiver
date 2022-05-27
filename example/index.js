@@ -1,4 +1,4 @@
-const Client = require('../src');
+const Client = require('..').default;
 const senderId = require('yargs').argv.senderId;
 
 if (!senderId) {
@@ -10,10 +10,13 @@ if (!senderId) {
 (async () => {
   const client = new Client(__dirname + '/client.json');
   client.startListening();
-  client.on('notification', notification => {
-    console.log('Notification received');
-    console.log(notification);
-  });
-  const registrationInfo = await client.register('web', senderId);
+  const registrationInfo = await client.register(senderId);
   console.log(registrationInfo);
+  client.on('message', async message => {
+    console.log('Notification received');
+    console.log(message);
+    console.log('deleting registration...')
+    await client.unregister(senderId, registrationInfo.app)
+    console.log('deleted!')
+  });
 })();

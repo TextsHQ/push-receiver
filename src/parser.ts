@@ -4,26 +4,27 @@ import type tls from 'tls'
 
 import constants from './constants'
 import { mcs_proto } from './protos/mcs'
+import { tagToType } from './mcs-tags'
+
+enum ProcessingState {
+  // Processing the version, tag, and size packets (assuming minimum length
+  // size packet). Only used during the login handshake.
+  VERSION_TAG_AND_SIZE,
+  // Processing the tag and size packets (assuming minimum length size
+  // packet). Used for normal messages.
+  TAG_AND_SIZE,
+  // Processing the size packet alone.
+  SIZE,
+  // Processing the protocol buffer bytes (for those messages with non-zero
+  // sizes).
+  PROTO_BYTES,
+}
 
 const {
-  MCS_VERSION_TAG_AND_SIZE,
-  MCS_TAG_AND_SIZE,
-  MCS_SIZE,
-  MCS_PROTO_BYTES,
-
   kVersionPacketLen,
   kTagPacketLen,
   kSizePacketLenMin,
   kMCSVersion,
-
-  kHeartbeatPingTag,
-  kHeartbeatAckTag,
-  kLoginRequestTag,
-  kLoginResponseTag,
-  kCloseTag,
-  kIqStanzaTag,
-  kDataMessageStanzaTag,
-  kStreamErrorStanzaTag,
 } = constants
 
 const DEBUG = process.env.DEBUG ? console.log : () => {}
@@ -41,7 +42,7 @@ const DEBUG = process.env.DEBUG ? console.log : () => {}
 export default class Parser extends EventEmitter {
   _socket: tls.TLSSocket
 
-  _state: number
+  _state: ProcessingState
 
   _data: Buffer
 
@@ -58,7 +59,7 @@ export default class Parser extends EventEmitter {
   constructor(socket: tls.TLSSocket) {
     super()
     this._socket = socket
-    this._state = MCS_VERSION_TAG_AND_SIZE
+    this._state = ProcessingState.VERSION_TAG_AND_SIZE
     this._data = Buffer.alloc(0)
     this._sizePacketSoFar = 0
     this._messageTag = 0
@@ -94,16 +95,16 @@ export default class Parser extends EventEmitter {
     let minBytesNeeded = 0
 
     switch (this._state) {
-      case MCS_VERSION_TAG_AND_SIZE:
+      case ProcessingState.VERSION_TAG_AND_SIZE:
         minBytesNeeded = kVersionPacketLen + kTagPacketLen + kSizePacketLenMin
         break
-      case MCS_TAG_AND_SIZE:
+      case ProcessingState.TAG_AND_SIZE:
         minBytesNeeded = kTagPacketLen + kSizePacketLenMin
         break
-      case MCS_SIZE:
+      case ProcessingState.SIZE:
         minBytesNeeded = this._sizePacketSoFar + 1
         break
-      case MCS_PROTO_BYTES:
+      case ProcessingState.PROTO_BYTES:
         minBytesNeeded = this._messageSize
         break
       default:
@@ -124,16 +125,16 @@ export default class Parser extends EventEmitter {
     DEBUG(`Processing MCS data: state == ${this._state}`)
 
     switch (this._state) {
-      case MCS_VERSION_TAG_AND_SIZE:
+      case ProcessingState.VERSION_TAG_AND_SIZE:
         this._onGotVersion()
         break
-      case MCS_TAG_AND_SIZE:
+      case ProcessingState.TAG_AND_SIZE:
         this._onGotMessageTag()
         break
-      case MCS_SIZE:
+      case ProcessingState.SIZE:
         this._onGotMessageSize()
         break
-      case MCS_PROTO_BYTES:
+      case ProcessingState.PROTO_BYTES:
         this._onGotMessageBytes()
         break
       default:
@@ -184,7 +185,7 @@ export default class Parser extends EventEmitter {
     // above to be mid-packet like: new BufferReader(this._data.slice(0, 1))
     if (incompleteSizePacket) {
       this._sizePacketSoFar = reader.pos
-      this._state = MCS_SIZE
+      this._state = ProcessingState.SIZE
       this._waitForData()
       return
     }
@@ -195,7 +196,7 @@ export default class Parser extends EventEmitter {
     this._sizePacketSoFar = 0
 
     if (this._messageSize > 0) {
-      this._state = MCS_PROTO_BYTES
+      this._state = ProcessingState.PROTO_BYTES
       this._waitForData()
     } else {
       this._onGotMessageBytes()
@@ -203,8 +204,8 @@ export default class Parser extends EventEmitter {
   }
 
   _onGotMessageBytes() {
-    const protobuf = this._buildProtobufFromTag(this._messageTag)
-    if (!protobuf) {
+    const pbType = tagToType(this._messageTag)
+    if (!pbType) {
       this._emitError(new Error('Unknown tag'))
       return
     }
@@ -224,23 +225,17 @@ export default class Parser extends EventEmitter {
           this._messageSize
         }`,
       )
-      this._state = MCS_PROTO_BYTES
+      this._state = ProcessingState.PROTO_BYTES
       this._waitForData()
       return
     }
 
     const buffer = this._data.slice(0, this._messageSize)
     this._data = this._data.slice(this._messageSize)
-    const message = protobuf.decode(buffer)
-    const object = protobuf.toObject(message, {
-      longs: String,
-      enums: String,
-      bytes: Buffer,
-    })
+    const message = pbType.decode(buffer)
+    this.emit('message', message)
 
-    this.emit('message', { tag: this._messageTag, object })
-
-    if (this._messageTag === kLoginResponseTag) {
+    if (message instanceof mcs_proto.LoginResponse) {
       if (this._handshakeComplete) {
         console.error('Unexpected login response')
       } else {
@@ -255,30 +250,7 @@ export default class Parser extends EventEmitter {
   _getNextMessage() {
     this._messageTag = 0
     this._messageSize = 0
-    this._state = MCS_TAG_AND_SIZE
+    this._state = ProcessingState.TAG_AND_SIZE
     this._waitForData()
-  }
-
-  _buildProtobufFromTag(tag: number) {
-    switch (tag) {
-      case kHeartbeatPingTag:
-        return mcs_proto.HeartbeatPing
-      case kHeartbeatAckTag:
-        return mcs_proto.HeartbeatAck
-      case kLoginRequestTag:
-        return mcs_proto.LoginRequest
-      case kLoginResponseTag:
-        return mcs_proto.LoginResponse
-      case kCloseTag:
-        return mcs_proto.Close
-      case kIqStanzaTag:
-        return mcs_proto.IqStanza
-      case kDataMessageStanzaTag:
-        return mcs_proto.DataMessageStanza
-      case kStreamErrorStanzaTag:
-        return mcs_proto.StreamErrorStanza
-      default:
-        return null
-    }
   }
 }
