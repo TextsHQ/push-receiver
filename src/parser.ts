@@ -26,11 +26,7 @@ const {
   kStreamErrorStanzaTag,
 } = constants
 
-const DEBUG = data => {
-  data
-}
-// uncomment the line below to output debug messages
-// const DEBUG = console.log;
+const DEBUG = process.env.DEBUG ? console.log : () => {}
 
 // Parser parses wire data from gcm.
 // This takes the role of WaitForData in the chromium connection handler.

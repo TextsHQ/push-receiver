@@ -192,13 +192,13 @@ class Client extends EventEmitter {
     this._retry()
   }
 
-  _onSocketError(error) {
+  _onSocketError(error: Error) {
     // ignore, the close handler takes care of retry
-    error
+    console.error(error)
   }
 
-  _onParserError(error) {
-    error
+  _onParserError(error: Error) {
+    console.error(error)
     this._retry()
   }
 
