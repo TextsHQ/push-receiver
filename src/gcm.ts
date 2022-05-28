@@ -107,9 +107,9 @@ async function _register(
     if (errIdx === -1) break
     const err = response.substring(errIdx + ERR_PREFIX.length)
     if (attempt === MAX_ATTEMPTS - 1) {
-      throw new Error(err)
+      throw new Error(`GCM registration failed: ${err}`)
     } else {
-      console.warn(`Retry ${attempt + 1}; Register request has failed with: ${err}`)
+      console.warn(`Retry ${attempt + 1}; ${shouldDelete ? 'Unregister' : 'Register'} request failed with: ${err}`)
       await setTimeout(1000)
     }
   }
