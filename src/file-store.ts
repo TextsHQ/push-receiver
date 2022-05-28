@@ -55,7 +55,7 @@ export default class FileStore implements DataStore {
   }
 
   allPersistentIds() {
-    return [...this._data.persistentIds]
+    return this._data.persistentIds
   }
 
   clearPersistentIds() {

@@ -173,7 +173,7 @@ class Client extends EventEmitter {
       setting: [{ name: 'new_vc', value: '1' }],
       // Id of the last notification received
       clientEvent: [],
-      receivedPersistentId: await this._dataStore.allPersistentIds(),
+      receivedPersistentId: [...await this._dataStore.allPersistentIds()],
     })
 
     const buffer = mcs_proto.LoginRequest.encodeDelimited(loginRequest).finish()

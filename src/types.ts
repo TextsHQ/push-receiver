@@ -33,7 +33,7 @@ export interface DataStore {
   get clientInfo(): ClientInfo | null
   set clientInfo(newValue: ClientInfo)
 
-  allPersistentIds(): Awaitable<string[]>
+  allPersistentIds(): Awaitable<Iterable<string>>
   clearPersistentIds(): Awaitable<void>
   hasPersistentId(id: string): Awaitable<boolean>
   addPersistentId(id: string): Awaitable<void>
