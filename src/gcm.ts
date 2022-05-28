@@ -65,7 +65,7 @@ async function _register(
   { androidId, securityToken }: ClientInfo,
   authorizedEntity: string,
   shouldDelete: boolean,
-  options: RegisterOptions
+  options: RegisterOptions,
 ): Promise<RegisterResult> {
   const appId = options.app?.appId || crypto.randomUUID()
 
@@ -100,7 +100,7 @@ async function _register(
   let response: string
   const MAX_ATTEMPTS = 5
   for (let attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
-    instanceId = options.app?.instanceId || await createInstanceId();
+    instanceId = options.app?.instanceId || await createInstanceId()
     reqOptions.form.appid = instanceId
     response = await request(reqOptions)
     const errIdx = response.indexOf(ERR_PREFIX)
@@ -123,7 +123,7 @@ async function _register(
 export async function register(
   clientInfo: ClientInfo,
   authorizedEntity: string,
-  options: RegisterOptions = {}
+  options: RegisterOptions = {},
 ): Promise<RegisterResult> {
   return _register(clientInfo, authorizedEntity, false, options)
 }
@@ -131,7 +131,7 @@ export async function register(
 export async function unregister(
   clientInfo: ClientInfo,
   authorizedEntity: string,
-  app: AppInfo
+  app: AppInfo,
 ) {
   await _register(clientInfo, authorizedEntity, true, { app })
 }

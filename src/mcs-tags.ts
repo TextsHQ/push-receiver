@@ -1,4 +1,4 @@
-import { mcs_proto } from "./protos/mcs"
+import { mcs_proto } from './protos/mcs'
 
 // list of mcs.proto types indexed by MCS tag
 // (or strings, if mcs.proto doesn't have that type)

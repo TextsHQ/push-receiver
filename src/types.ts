@@ -1,4 +1,4 @@
-import type { mcs_proto } from "./protos/mcs"
+import type { mcs_proto } from './protos/mcs'
 
 export type Awaitable<T> = T | PromiseLike<T>
 

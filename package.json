@@ -13,7 +13,7 @@
     "prepack": "yarn build",
     "compile-protos": "scripts/compile-protos.sh",
     "build": "yarn compile-protos && yarn tsc && cp -r src/protos dist",
-    "lint": "yarn eslint src --ext ts,tsx,js,jsx --cache",
+    "lint": "yarn eslint example scripts test src --ext ts,tsx,js,jsx --cache",
     "test": "jest"
   },
   "devDependencies": {
