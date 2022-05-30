@@ -2,10 +2,14 @@ import type { mcs_proto } from './protos/mcs'
 
 export type Awaitable<T> = T | PromiseLike<T>
 
-export interface ClientOptions {
+export interface CheckinClientOptions {
   // the period with which to check in
   checkInInterval?: number
 }
+
+export interface MCSClientOptions {}
+
+export interface GCMRegistrarOptions {}
 
 export type AppInfo = {
   appId: string
@@ -29,10 +33,12 @@ export interface ClientInfo {
   securityToken: string
 }
 
-export interface DataStore {
+export interface CheckinDataStore {
   get clientInfo(): ClientInfo | null
   set clientInfo(newValue: ClientInfo)
+}
 
+export interface MCSDataStore {
   allPersistentIds(): Awaitable<Iterable<string>>
   clearPersistentIds(): Awaitable<void>
   hasPersistentId(id: string): Awaitable<boolean>

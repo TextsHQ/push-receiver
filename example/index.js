@@ -1,6 +1,8 @@
-const Client = require('..').default
-const { senderId } = require('yargs').argv
+const path = require('path')
+const { FileStore, CheckinClient, MCSClient, GCMRegistrar } = require('..')
 
+// eslint-disable-next-line
+const { senderId } = require('yargs').argv
 if (!senderId) {
   throw new Error('Missing senderId')
 }
@@ -8,15 +10,21 @@ if (!senderId) {
 // twitter sender ID: BF5oEo0xDUpgylKDTlsd8pZmxQA1leYINiY-rSscWYK_3tWAkz4VMbtf1MLE_Yyd6iII6o-e3Q9TCN5vZMzVMEs
 
 (async () => {
-  const client = new Client(__dirname + '/client.json')
-  client.startListening()
-  const registrationInfo = await client.register(senderId)
+  const store = await FileStore.create(path.join(__dirname, 'client.json'))
+  const checkinClient = new CheckinClient(store)
+  const mcsClient = new MCSClient(checkinClient, store)
+  const registrar = new GCMRegistrar(checkinClient)
+
+  mcsClient.startListening()
+
+  const registrationInfo = await registrar.register(senderId)
   console.log(registrationInfo)
-  client.on('message', async message => {
+
+  mcsClient.on('message', async message => {
     console.log('Notification received')
     console.log(message)
     console.log('deleting registration...')
-    await client.unregister(senderId, registrationInfo.app)
+    await registrar.unregister(senderId, registrationInfo.app)
     console.log('deleted!')
   })
 })()

@@ -39,7 +39,7 @@ const DEBUG = process.env.DEBUG ? console.log : () => {}
 // - Setting timeouts while waiting for data
 //
 // ref: https://cs.chromium.org/chromium/src/google_apis/gcm/engine/connection_handler_impl.cc?rcl=dc7c41bc0ee5fee0ed269495dde6b8c40df43e40&l=178
-export default class Parser extends EventEmitter {
+export default class MCSParser extends EventEmitter {
   _socket: tls.TLSSocket
 
   _state: ProcessingState

@@ -1,10 +1,10 @@
 import { readFile, writeFile } from 'fs/promises'
-import type { ClientInfo, DataStore } from './types'
+import type { ClientInfo, MCSDataStore, CheckinDataStore } from './types'
 
 const symbol = Symbol('FileStore')
 
-export default class FileStore implements DataStore {
-  private _data: {
+export default class FileStore implements MCSDataStore, CheckinDataStore {
+  private data: {
     clientInfo: ClientInfo
     persistentIds: Set<string>
   }
@@ -15,66 +15,66 @@ export default class FileStore implements DataStore {
     }
   }
 
-  async _init() {
+  private async init() {
     try {
       const file = await readFile(this._path)
       const json = JSON.parse(file.toString())
-      this._data = {
+      this.data = {
         clientInfo: json.clientInfo,
         persistentIds: new Set(json.persistentIds),
       }
     } catch (e) {
-      this._data = {
+      this.data = {
         clientInfo: null,
         persistentIds: new Set(),
       }
     }
   }
 
-  async _save() {
+  private async save() {
     const json = {
-      clientInfo: this._data.clientInfo,
-      persistentIds: [...this._data.persistentIds],
+      clientInfo: this.data.clientInfo,
+      persistentIds: [...this.data.persistentIds],
     }
     const str = JSON.stringify(json)
     await writeFile(this._path, str)
   }
 
-  _setNeedsSave() {
+  private setNeedsSave() {
     // TODO: debounce
-    this._save()
+    this.save()
   }
 
   get clientInfo() {
-    return this._data.clientInfo
+    return this.data.clientInfo
   }
 
   set clientInfo(newValue) {
-    this._data.clientInfo = newValue
-    this._setNeedsSave()
+    this.data.clientInfo = newValue
+    this.setNeedsSave()
   }
 
   allPersistentIds() {
-    return this._data.persistentIds
+    return this.data.persistentIds
   }
 
   clearPersistentIds() {
-    this._data.persistentIds.clear()
-    this._setNeedsSave()
+    this.data.persistentIds.clear()
+    this.setNeedsSave()
   }
 
   hasPersistentId(id: string) {
-    return this._data.persistentIds.has(id)
+    return this.data.persistentIds.has(id)
   }
 
   addPersistentId(id: string) {
-    this._data.persistentIds.add(id)
-    this._setNeedsSave()
+    this.data.persistentIds.add(id)
+    this.setNeedsSave()
   }
 
   static async create(path: string) {
     const store = new FileStore(symbol, path)
-    await store._init()
+    await store.init()
     return store
   }
 }
