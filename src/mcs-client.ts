@@ -3,8 +3,9 @@
 import EventEmitter from 'events'
 import Long from 'long'
 import tls from 'tls'
-import { mcs_proto } from './protos/mcs'
+import { promisify } from 'util'
 
+import { mcs_proto } from './protos/mcs'
 import MCSParser from './mcs-parser'
 import constants from './constants'
 import { typeToTag } from './mcs-tags'
@@ -14,7 +15,17 @@ import type CheckinClient from './checkin-client'
 const {
   kMCSVersion,
   kChromeVersion,
+  kMCSCategory,
+  kGCMFromField,
+  kIdleNotification,
+  kMaxUnackedIds,
+  kDefaultHeartbeatInterval,
 } = constants
+
+enum IqExtension {
+  SELECTIVE_ACK = 12,
+  STREAM_ACK = 13,
+}
 
 const HOST = 'mtalk.google.com'
 const PORT = 5228
@@ -30,7 +41,20 @@ declare interface MCSClient {
 class MCSClient extends EventEmitter {
   private retryCount: number
 
+  // note that the actual chromium impl has a lot more state:
+  // stream_id_in_, stream_id_out_, etc, and uses a much more complex
+  // acknowledgement process involving a two-way ack. Since our connection
+  // is much more reliable than a spotty mobile network, we simplify things
+  // a ton and just maintain a single stream ID. For the real impl (which puts
+  // the "reliable" in "reliable message queue"), see
+  // https://github.com/chromium/chromium/blob/571b7db2fc1b5e49acbab88daf813a24a64b1b14/google_apis/gcm/engine/mcs_client.cc
+  private streamId: number
+
   private retryTimeout: ReturnType<typeof setTimeout>
+
+  private heartbeatTimeout: ReturnType<typeof setTimeout>
+
+  private waitingForAck: boolean
 
   private socket: tls.TLSSocket
 
@@ -39,6 +63,8 @@ class MCSClient extends EventEmitter {
   constructor(private checkinClient: CheckinClient, private dataStore: MCSDataStore, private options: MCSClientOptions = {}) {
     super()
     this.retryCount = 0
+    this.streamId = 0
+    this.waitingForAck = false
     this.onSocketConnect = this.onSocketConnect.bind(this)
     this.onSocketClose = this.onSocketClose.bind(this)
     this.onSocketError = this.onSocketError.bind(this)
@@ -46,35 +72,35 @@ class MCSClient extends EventEmitter {
     this.onParserError = this.onParserError.bind(this)
   }
 
-  async startListening() {
-    // TODO: Implement heartbeat
-    // https://github.com/chromium/chromium/blob/8ff502b4d8b0b85fd4cda215cce617ea4a3c29a6/google_apis/gcm/engine/heartbeat_manager.cc
+  startListening() {
+    this.connect()
+    // can happen if the socket immediately closes after being created
+    if (!this.socket) return
 
-    await this._connect()
-    // can happen if the socket immediately closes after being created
-    if (!this.socket) {
-      return
-    }
-    // can happen if the socket immediately closes after being created
-    if (!this.socket) {
-      return
-    }
     this.parser = new MCSParser(this.socket)
     this.parser.on('message', this.onMessage)
     this.parser.on('error', this.onParserError)
   }
 
-  async _connect() {
+  private connect() {
     this.socket = tls.connect(PORT, HOST, { servername: HOST })
     this.socket.setKeepAlive(true)
     this.socket.on('connect', this.onSocketConnect)
     this.socket.on('close', this.onSocketClose)
     this.socket.on('error', this.onSocketError)
-    this.socket.write(await this.loginBuffer())
+
+    this.write(Buffer.from([kMCSVersion]))
+
+    this.streamId = 0
+
+    this.waitingForAck = false
+
+    this.sendLoginRequest()
   }
 
   stopListening() {
-    clearTimeout(this.retryTimeout)
+    if (this.retryTimeout) clearTimeout(this.retryTimeout)
+    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout)
     if (this.socket) {
       this.socket.removeListener('connect', this.onSocketConnect)
       this.socket.removeListener('close', this.onSocketClose)
@@ -90,33 +116,61 @@ class MCSClient extends EventEmitter {
     }
   }
 
-  private async loginBuffer() {
-    const clientInfo = await this.checkinClient.clientInfo()
-    const hexAndroidId = Long.fromString(clientInfo.androidId).toString(16)
-    const loginRequest = new mcs_proto.LoginRequest({
+  private buildBuffer(message: any) {
+    const tag = typeToTag(message.constructor)
+    if (typeof tag !== 'number') throw new Error(`Message has unknown type: ${message.constructor.name}`)
+    return Buffer.concat([
+      Buffer.from([tag]),
+      (message.constructor as any).encodeDelimited(message).finish(),
+    ])
+  }
+
+  private async write(buffer: Buffer) {
+    await promisify(this.socket.write.bind(this.socket))(buffer)
+  }
+
+  private async sendMessage(message: any) {
+    // eslint-disable-next-line no-param-reassign
+    message.lastStreamIdReceived = this.streamId
+    console.log('sending message', message)
+    await this.write(this.buildBuffer(message))
+  }
+
+  private async sendLoginRequest() {
+    const { androidId, securityToken } = await this.checkinClient.clientInfo()
+    const hexAndroidId = Long.fromString(androidId).toString(16)
+    await this.sendMessage(new mcs_proto.LoginRequest({
       adaptiveHeartbeat: false,
       authService: mcs_proto.LoginRequest.AuthService.ANDROID_ID,
-      authToken: clientInfo.securityToken,
+      authToken: securityToken,
       id: `chrome-${kChromeVersion}`,
       domain: 'mcs.android.com',
       deviceId: `android-${hexAndroidId}`,
       // Chromium`net::NetworkChangeNotifier::CONNECTION_ETHERNET
       networkType: 1,
-      resource: clientInfo.androidId,
-      user: clientInfo.androidId,
+      resource: androidId,
+      user: androidId,
+      // reliable message queue
       useRmq2: true,
       setting: [{ name: 'new_vc', value: '1' }],
-      // Id of the last notification received
       clientEvent: [],
       receivedPersistentId: [...await this.dataStore.allPersistentIds()],
-    })
+    }))
+  }
 
-    const buffer = mcs_proto.LoginRequest.encodeDelimited(loginRequest).finish()
+  private async sendHeartbeatPing() {
+    await this.sendMessage(new mcs_proto.HeartbeatPing({}))
+  }
 
-    return Buffer.concat([
-      Buffer.from([kMCSVersion, typeToTag(mcs_proto.LoginRequest)]),
-      buffer,
-    ])
+  private async sendStreamAck() {
+    await this.sendMessage(new mcs_proto.IqStanza({
+      type: mcs_proto.IqStanza.IqType.SET,
+      id: '',
+      extension: {
+        id: IqExtension.STREAM_ACK,
+        data: new Uint8Array(),
+      },
+    }))
   }
 
   private onSocketConnect() {
@@ -126,7 +180,7 @@ class MCSClient extends EventEmitter {
 
   private onSocketClose() {
     this.emit('disconnect')
-    this.retry()
+    this.resetConnection('socket closed')
   }
 
   private onSocketError(error: Error) {
@@ -136,35 +190,109 @@ class MCSClient extends EventEmitter {
 
   private onParserError(error: Error) {
     console.error(error)
-    this.retry()
+    this.resetConnection('parser error')
   }
 
-  private retry() {
+  private resetConnection(reason: string) {
+    console.log('Resetting connection!', reason)
     this.stopListening()
+    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout)
     const timeout = Math.min(++this.retryCount, MAX_RETRY_TIMEOUT) * 1000
     this.retryTimeout = setTimeout(this.startListening.bind(this), timeout)
   }
 
+  private heartbeatTriggered() {
+    if (this.waitingForAck) {
+      this.resetConnection('heartbeat failed')
+      return
+    }
+    this.sendHeartbeatPing()
+    this.waitingForAck = true
+    this.resetHeartbeatTimer()
+  }
+
+  private onHeartbeatAcked() {
+    this.waitingForAck = false
+    this.resetHeartbeatTimer()
+  }
+
+  private resetHeartbeatTimer() {
+    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout)
+    this.heartbeatTimeout = setTimeout(this.heartbeatTriggered.bind(this), kDefaultHeartbeatInterval * 1000)
+  }
+
   private async onMessage(object) {
+    console.log('received message', object)
+
+    ++this.streamId
+    if (this.streamId % kMaxUnackedIds === 0) {
+      await this.sendStreamAck()
+      await this.dataStore.clearPersistentIds()
+    } else if (object.persistentId) {
+      // Maintain persistentIds updated with the very last received value
+      await this.dataStore.addPersistentId(object.persistentId)
+    }
+
+    // every message acts as a heartbeat ack, since all we want to know is
+    // that the connection isn't dead
+    this.onHeartbeatAcked()
+
     if (object instanceof mcs_proto.LoginResponse) {
+      this.streamId = 1
       // clear persistent ids, as we just sent them to the server while logging
       // in
       await this.dataStore.clearPersistentIds()
     } else if (object instanceof mcs_proto.DataMessageStanza) {
       await this.onDataMessage(object)
+    } else if (object instanceof mcs_proto.HeartbeatPing) {
+      await this.sendMessage(new mcs_proto.HeartbeatAck())
+    } else if (object instanceof mcs_proto.HeartbeatAck) {
+      // we've already called onHeartbeatAcked, do nothing special here
+    } else if (object instanceof mcs_proto.Close) {
+      this.resetConnection('mcs requested close')
+    } else if (object instanceof mcs_proto.IqStanza) {
+      switch (object.extension.id) {
+        case IqExtension.SELECTIVE_ACK:
+          this.handleSelectiveAck(mcs_proto.SelectiveAck.decode(object.extension.data).id)
+          break
+        case IqExtension.STREAM_ACK:
+          // we always process the last stream id, do nothing extra
+          break
+        default:
+          console.log('INVALID IQ EXTENSION', object.extension.id)
+          break
+      }
     } else {
-      console.log('received message', object)
+      console.log('UNHANDLED MESSAGE', object.constructor.name)
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private handleSelectiveAck(persistentIds: string[]) {
+    // Do nothing for now, we don't do (persistent) outgoing messages
+  }
+
   private async onDataMessage(msg: mcs_proto.DataMessageStanza) {
-    if (await this.dataStore.hasPersistentId(msg.persistentId)) {
+    if (msg.category === kMCSCategory) {
+      this.handleMCSDataMessage(msg)
       return
     }
-    // Maintain persistentIds updated with the very last received value
-    await this.dataStore.addPersistentId(msg.persistentId)
-    // Send message
     this.emit('message', msg)
+  }
+
+  private async handleMCSDataMessage(msg: mcs_proto.DataMessageStanza) {
+    if (!msg.appData.find(data => data.key === kIdleNotification)) {
+      console.log('Unhandled MCS message (not an IdleNotification)', msg)
+      return
+    }
+    const dataMessage = new mcs_proto.DataMessageStanza({
+      from: kGCMFromField,
+      category: kMCSCategory,
+      sent: Date.now() / 1000,
+      ttl: 0,
+      appData: [{ key: kIdleNotification, value: 'false' }],
+    })
+    await this.sendMessage(dataMessage)
   }
 }
 

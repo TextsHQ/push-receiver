@@ -15,10 +15,19 @@ export default {
   // The current MCS protocol version.
   kMCSVersion: 41,
 
+  kMCSCategory: 'com.google.android.gsf.gtalkservice',
+  kGCMFromField: 'gcm@android.com',
+  kIdleNotification: 'IdleNotification',
+
   kChromeVersion: '101.0.4951.64',
 
   // 2 days
   kDefaultCheckinInterval: 2 * 24 * 60 * 60,
   // 12 hours
   kMinimumCheckinInterval: 12 * 60 * 60,
+
+  // 10 minutes
+  kDefaultHeartbeatInterval: 10 * 60,
+
+  kMaxUnackedIds: 10,
 }

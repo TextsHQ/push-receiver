@@ -23,8 +23,8 @@ if (!senderId) {
   mcsClient.on('message', async message => {
     console.log('Notification received')
     console.log(message)
-    console.log('deleting registration...')
-    await registrar.unregister(senderId, registrationInfo.app)
-    console.log('deleted!')
+    // console.log('deleting registration...')
+    // await registrar.unregister(senderId, registrationInfo.app)
+    // console.log('deleted!')
   })
 })()
