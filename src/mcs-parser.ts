@@ -171,7 +171,7 @@ export default class MCSParser extends EventEmitter {
     try {
       this._messageSize = reader.int32()
     } catch (error) {
-      if (error.message.startsWith('index out of range:')) {
+      if (error instanceof RangeError) {
         incompleteSizePacket = true
       } else {
         this._emitError(error)

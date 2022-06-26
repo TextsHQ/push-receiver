@@ -34,7 +34,7 @@ for (let i = 0; i < types.length; ++i) {
   if (typeof name !== 'string') name = name.name
   _typeToTag[name] = i
 }
-export function typeToTag(type: any): number {
-  if (typeof type !== 'string') type = type.name
-  return _typeToTag[type]
+export function typeToTag(type: any): number | undefined {
+  const name = (typeof type === 'string') ? type : type?.name
+  return _typeToTag[name]
 }
