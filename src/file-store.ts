@@ -9,6 +9,8 @@ export default class FileStore implements MCSDataStore, CheckinDataStore {
     persistentIds: Set<string>
   }
 
+  private isSaving = false
+
   private constructor(sym: symbol, readonly _path: string) {
     if (sym !== symbol) {
       throw new Error('FileStore must be created with FileStore.create')
@@ -42,7 +44,12 @@ export default class FileStore implements MCSDataStore, CheckinDataStore {
 
   private setNeedsSave() {
     // TODO: debounce
-    this.save()
+    if (this.isSaving) return
+    this.isSaving = true;
+    (async () => {
+      await this.save()
+      this.isSaving = false
+    })()
   }
 
   get clientInfo() {

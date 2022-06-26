@@ -38,6 +38,9 @@ export interface CheckinDataStore {
   set clientInfo(newValue: ClientInfo)
 }
 
+// must be atomic and serial.
+// if `clear` then `add` called, the net result should be
+// one id in the store
 export interface MCSDataStore {
   allPersistentIds(): Awaitable<Iterable<string>>
   clearPersistentIds(): Awaitable<void>

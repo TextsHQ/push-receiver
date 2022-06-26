@@ -225,9 +225,16 @@ class MCSClient extends EventEmitter {
     console.log('received message', object)
 
     ++this.streamId
+
+    // TODO: given the likely large volume of notifs we'll be processing, maybe
+    // we should debounce the decision to ack, or make it entirely time-based?
+
+    // clearPersistentIds and addPersistentId have to be the first `await`s
+    // because that ensures that if onMessage(a) is called before onMessage(b)
+    // then the appropriate clear/add action for `a` will occur before that of `b`
     if (this.streamId % kMaxUnackedIds === 0) {
-      await this.sendStreamAck()
       await this.dataStore.clearPersistentIds()
+      await this.sendStreamAck()
     } else if (object.persistentId) {
       // Maintain persistentIds updated with the very last received value
       await this.dataStore.addPersistentId(object.persistentId)
