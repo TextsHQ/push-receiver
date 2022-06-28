@@ -30,6 +30,7 @@ enum IqExtension {
 const HOST = 'mtalk.google.com'
 const PORT = 5228
 const MAX_RETRY_TIMEOUT = 15
+const IS_DEV = process.env.NODE_ENV !== 'production'
 
 declare interface MCSClient {
   on(event: 'connect', listener: () => void): this
@@ -132,7 +133,7 @@ class MCSClient extends EventEmitter {
   private async sendMessage(message: any) {
     // eslint-disable-next-line no-param-reassign
     message.lastStreamIdReceived = this.streamId
-    console.log('sending message', message)
+    console.log('sending message', IS_DEV ? message : message.constructor?.name)
     await this.write(this.buildBuffer(message))
   }
 
@@ -194,7 +195,7 @@ class MCSClient extends EventEmitter {
   }
 
   private resetConnection(reason: string) {
-    console.log('Resetting connection!', reason)
+    console.log('resetting connection', reason)
     this.stopListening()
     if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout)
     const timeout = Math.min(++this.retryCount, MAX_RETRY_TIMEOUT) * 1000
@@ -221,8 +222,14 @@ class MCSClient extends EventEmitter {
     this.heartbeatTimeout = setTimeout(this.heartbeatTriggered.bind(this), kDefaultHeartbeatInterval * 1000)
   }
 
-  private async onMessage(object) {
-    console.log('received message', object)
+  private async onMessage(object: any
+  | mcs_proto.LoginResponse
+  | mcs_proto.DataMessageStanza
+  | mcs_proto.HeartbeatPing
+  | mcs_proto.HeartbeatAck
+  | mcs_proto.Close
+  | mcs_proto.IqStanza) {
+    console.log('received message', IS_DEV ? object : object.constructor?.name)
 
     ++this.streamId
 
@@ -266,11 +273,11 @@ class MCSClient extends EventEmitter {
           // we always process the last stream id, do nothing extra
           break
         default:
-          console.log('INVALID IQ EXTENSION', object.extension.id)
+          console.log('invalid iq extension', object.extension.id)
           break
       }
     } else {
-      console.log('UNHANDLED MESSAGE', object.constructor.name)
+      console.log('unhandled message', object.constructor.name)
     }
   }
 
