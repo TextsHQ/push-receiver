@@ -13,3 +13,10 @@ node_modules
 npm-debug.log
 coverage
 *.pem
+
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
