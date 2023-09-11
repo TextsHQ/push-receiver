@@ -33,5 +33,5 @@
     "request": "^2.81.0",
     "request-promise": "^4.2.1"
   },
-  "packageManager": "yarn@3.5.0"
+  "packageManager": "yarn@3.6.3"
 }
