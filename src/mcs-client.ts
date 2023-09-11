@@ -22,7 +22,7 @@ const {
   kDefaultHeartbeatInterval,
 } = constants
 
-enum IqExtension {
+const enum IqExtension {
   SELECTIVE_ACK = 12,
   STREAM_ACK = 13,
 }

@@ -1,7 +1,8 @@
 import { promisify } from 'util'
 import crypto from 'crypto'
 import { setTimeout } from 'timers/promises'
-import request from 'request-promise'
+import request, { RequestPromiseOptions } from 'request-promise'
+import type { UrlOptions } from 'request'
 
 import constants from './constants'
 import type { AppInfo, GCMRegistrarOptions, RegisterOptions, RegisterResult } from './types'
@@ -35,30 +36,31 @@ export default class GCMRegistrar {
 
     const appId = options.app?.appId || crypto.randomUUID()
 
-    const reqOptions = {
+    const form: Record<string, string> = {
+      scope: 'GCM',
+      'X-scope': 'GCM',
+      sender: authorizedEntity,
+      gmsv: kChromeVersion.split('.')[0], // major chrome version
+      app: 'org.chromium.linux',
+      'X-subtype': appId,
+      device: androidId,
+    }
+    const reqOptions: UrlOptions & RequestPromiseOptions = {
       url: REGISTER_URL,
       method: 'POST',
       headers: {
         Authorization: `AidLogin ${androidId}:${securityToken}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      form: {
-        scope: 'GCM',
-        'X-scope': 'GCM',
-        sender: authorizedEntity,
-        gmsv: kChromeVersion.split('.')[0], // major chrome version
-        app: 'org.chromium.linux',
-        'X-subtype': appId,
-        device: androidId,
-      } as Record<string, string>,
+      form,
     }
 
     let expiry: Date = null
     if (shouldDelete) {
-      reqOptions.form.delete = 'true'
+      form.delete = 'true'
     }
     if (options.expiry) {
-      reqOptions.form.ttl = ((options.expiry.getTime() - Date.now()) / 1000).toString()
+      form.ttl = ((options.expiry.getTime() - Date.now()) / 1000).toString()
       expiry = options.expiry
     }
 
@@ -67,7 +69,7 @@ export default class GCMRegistrar {
     const MAX_ATTEMPTS = 5
     for (let attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
       instanceId = options.app?.instanceId || await createInstanceId()
-      reqOptions.form.appid = instanceId
+      form.appid = instanceId
       response = await request(reqOptions)
       const errIdx = response.indexOf(ERR_PREFIX)
       if (errIdx === -1) break
