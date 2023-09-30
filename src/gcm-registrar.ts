@@ -74,7 +74,7 @@ export default class GCMRegistrar {
       const errIdx = response.indexOf(ERR_PREFIX)
       if (errIdx === -1) break
       const err = response.substring(errIdx + ERR_PREFIX.length)
-      if (attempt === MAX_ATTEMPTS - 1) {
+      if (err === 'TOO_MANY_REGISTRATIONS' || attempt === MAX_ATTEMPTS - 1) {
         throw new Error(`GCM registration failed: ${err}`)
       } else {
         console.warn(`Retry ${attempt + 1}; ${shouldDelete ? 'Unregister' : 'Register'} request failed with: ${err}`)
