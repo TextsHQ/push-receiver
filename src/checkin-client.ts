@@ -1,5 +1,4 @@
 import Long from 'long'
-import request from 'request-promise'
 
 import constants from './constants'
 import { checkin_proto } from './protos/checkin'
@@ -55,16 +54,16 @@ export default class CheckinClient {
         : undefined,
     })
     const buffer = checkin_proto.AndroidCheckinRequest.encode(payload).finish()
-    const body = await request({
-      url: CHECKIN_URL,
+
+    const body = await fetch(CHECKIN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-protobuf',
       },
       body: buffer,
-      encoding: null,
-    })
-    const message = checkin_proto.AndroidCheckinResponse.decode(body)
+    }).then(res => res.arrayBuffer())
+    const message = checkin_proto.AndroidCheckinResponse.decode(Buffer.from(body))
+
     this.latestClientInfo = {
       androidId: message.androidId.toString(),
       securityToken: message.securityToken.toString(),

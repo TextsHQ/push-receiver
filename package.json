@@ -16,6 +16,10 @@
     "lint": "yarn eslint example scripts test src --ext ts,tsx,js,jsx --cache",
     "test": "jest"
   },
+  "dependencies": {
+    "long": "^3.2.0",
+    "protobufjs": "^6.11.3"
+  },
   "devDependencies": {
     "@textshq/eslint-config": "https://github.com/TextsHQ/eslint-config#main",
     "@types/eslint": "^8.4.10",
@@ -25,13 +29,6 @@
     "jest": "^22.2.2",
     "typescript": "^5.0.2",
     "yargs": "^10.0.3"
-  },
-  "dependencies": {
-    "@types/request-promise": "^4.1.48",
-    "long": "^3.2.0",
-    "protobufjs": "^6.11.3",
-    "request": "^2.81.0",
-    "request-promise": "^4.2.1"
   },
   "packageManager": "yarn@3.6.3"
 }

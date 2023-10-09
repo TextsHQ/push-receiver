@@ -1,8 +1,6 @@
 import { promisify } from 'util'
 import crypto from 'crypto'
 import { setTimeout } from 'timers/promises'
-import request, { RequestPromiseOptions } from 'request-promise'
-import type { UrlOptions } from 'request'
 
 import constants from './constants'
 import type { AppInfo, GCMRegistrarOptions, RegisterOptions, RegisterResult } from './types'
@@ -45,14 +43,14 @@ export default class GCMRegistrar {
       'X-subtype': appId,
       device: androidId,
     }
-    const reqOptions: UrlOptions & RequestPromiseOptions = {
-      url: REGISTER_URL,
+
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         Authorization: `AidLogin ${androidId}:${securityToken}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      form,
+      body: new URLSearchParams(form).toString(),
     }
 
     let expiry: Date = null
@@ -70,7 +68,7 @@ export default class GCMRegistrar {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {
       instanceId = options.app?.instanceId || await createInstanceId()
       form.appid = instanceId
-      response = await request(reqOptions)
+      response = await fetch(REGISTER_URL, fetchOptions).then(res => res.text())
       const errIdx = response.indexOf(ERR_PREFIX)
       if (errIdx === -1) break
       const err = response.substring(errIdx + ERR_PREFIX.length)
